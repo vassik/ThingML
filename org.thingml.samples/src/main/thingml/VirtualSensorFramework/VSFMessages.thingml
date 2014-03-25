@@ -1,0 +1,16 @@
+import "VSFDatatypes.thingml"
+
+
+thing fragment SensorDataMassages{
+    message sensorEvent(sensor : String, val : Double, unit : String, time : Long);
+}
+
+thing fragment SensAppMassages{
+    message setupNotification(sensor : String, vsName : String);
+    message wsOpen();
+}
+
+thing fragment XmlMsgs{
+    message xmlDocRequest(sourceName : String, url : String); 
+    message xmlDoc(sourceName : String, doc : XMLDoc);       
+}

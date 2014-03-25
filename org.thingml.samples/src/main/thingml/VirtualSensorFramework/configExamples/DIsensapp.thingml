@@ -1,0 +1,21 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../VirtualSensors/DIndexVS.thingml"
+
+
+configuration clacExample
+{
+    instance client : SensAppAdapter
+       set client._port = "ws://ec2-54-228-18-214.eu-west-1.compute.amazonaws.com:9000"
+    
+    instance vs : DiscomfortIndex
+        set vs.vsName = "discomfort_index"
+        // temperature 0, relative humidity 1
+        set vs.sensors[0] = "temperature"
+        set vs.sensors[1] = "rel_humidity"
+        set vs.setUpNotification[0] = true
+        set vs.setUpNotification[1] = true
+     
+    connector vs.sensappPort => client.sensappPort 
+    connector vs.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => vs.sensorDataOutput
+} 

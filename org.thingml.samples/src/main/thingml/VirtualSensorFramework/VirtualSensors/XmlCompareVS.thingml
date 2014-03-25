@@ -1,0 +1,87 @@
+import "VS.thingml"
+
+datatype Xpath
+@java_type "org.thingml.utils.xml.Xpath";
+
+datatype YrTransformer
+@java_type "org.thingml.utils.xml.YrTransformer";
+
+thing XmlCompareVS includes XmlMsgs, VS
+{	
+	property vsName : String
+    property sensor : String
+    property setUpNotification : Boolean
+    
+    property deviation : Double
+    property url : String
+    property xPathField : String
+    
+    property xmlDoc : XMLDoc
+    property xpath : Xpath
+
+    property yrTransformer : YrTransformer
+    
+    	required port xmlPort {
+            sends xmlDocRequest
+            receives xmlDoc
+	}
+               
+	statechart behaviour init Init
+	{
+    
+        state Init 
+        {
+            on entry do
+                xpath = 'new org.thingml.utils.xml.Xpath'
+                yrTransformer = 'new org.thingml.utils.xml.YrTransformer' 
+                xmlPort!xmlDocRequest(vsName, url)
+            end
+            
+            transition -> Start
+            event inDoc : xmlPort?xmlDoc
+            action do
+              xmlDoc = ''&yrTransformer&'.transformYrTimeFormat('&inDoc.doc&')'
+              if(setUpNotification == true) do
+              	sensappPort!setupNotification(sensor, vsName)
+              end
+            end                
+        }
+        
+        state Start 
+        {            
+            internal event in : sensorDataInput?sensorEvent
+            guard in.sensor == sensor
+            action do
+                var avTestExp : String = "//time[@from <= " +  in.time   + " and @to >= " + in.time  + "]"
+                print(avTestExp)
+                var av : Integer = '' & xpath & '.xPathNodeList(' & avTestExp & ', ' & xmlDoc & ').getLength()'
+                print("sizeav " + av)
+                if(av > 0) do
+                var exp : String = "//time[@from <= "  +  in.time   + " and @to >= " + in.time + "]/" + xPathField 
+                var nominalVal : Double = 'java.lang.Double.valueOf(' & xpath & '.xPath(' & exp & ', ' & xmlDoc & '))'
+               
+               print("nominal wind: " + nominalVal)
+               // filter: log if val is in allowed range
+                if(in.val < (nominalVal + nominalVal * deviation)) do
+                 if(in.val > (nominalVal - nominalVal * deviation)) do
+                 print("Debug windspeed forwarded " + in.val)
+                 sensorDataOutput!sensorEvent(vsName, in.val, in.unit, in.time )
+                end 
+               end
+              
+              // log if val is outside allowed range
+              /*   if(in.val > (nominalVal + nominalVal * deviation)) do
+                 sensorDataOutput!sensorEvent(vsName, in.val, in.unit, in.time )
+                 print("Deviation too big: value = " + in.val + " nominal value = " + nominalVal + " allowed deviation = " + deviation * 100 + " %")
+                end 
+                
+               if(in.val < (nominalVal - nominalVal * deviation)) do
+                 sensorDataOutput!sensorEvent(vsName, in.val, in.unit, in.time )
+                 print("Deviation too big: value = " + in.val + " nominal value = " + nominalVal + " allowed deviation = " + deviation * 100 + " %")
+                end 
+              */
+              end
+
+            end   
+	}
+}

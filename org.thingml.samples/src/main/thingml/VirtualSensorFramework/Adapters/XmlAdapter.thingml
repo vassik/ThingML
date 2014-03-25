@@ -1,0 +1,33 @@
+import "Adapter.thingml"
+
+datatype Document
+@java_type "org.w3c.dom.Document";
+
+datatype XmlParser
+@java_type "org.thingml.utils.xml.XmlParser";
+
+
+thing XmlAdapter includes Adapter, XmlMsgs 
+@thingml_maven_dep "org.thingml.utils.xml"
+{
+    	provided port xmlPort {
+		sends xmlDoc
+        receives xmlDocRequest
+	}  
+
+    property yrForecast : Document 
+    property xmlParser : XmlParser
+    
+    statechart behavior init Init {
+ 
+        state Init {
+            internal event req : xmlPort?xmlDocRequest 
+            action do
+                print("DEBUG: " + req.url)
+                xmlParser = 'new org.thingml.utils.xml.XmlParser(' & req.url & ')'
+                yrForecast = '' & xmlParser & '.parse()'    
+                xmlPort!xmlDoc(req.sourceName, yrForecast)          
+             end          
+        }    
+}
+}

@@ -1,0 +1,93 @@
+import "VS.thingml"
+
+//datatype SensorData
+//@java_type "org.thingml.utils.esper.eventtypes.SensorData";
+
+datatype Esper
+@java_type "org.thingml.utils.esper.EsperSensorDataEngine";
+
+datatype EventBean
+@java_type "com.espertech.esper.client.EventBean";
+
+
+thing EsperVS includes VS
+@scala_trait "org.thingml.utils.esper.EsperListener"
+@thingml_maven_dep "org.thingml.utils.esper"
+{	
+	
+	property vsName : String
+    property size : Integer
+    property sensors : String[10]
+    property setUpNotification : Boolean[10]
+
+
+    property esperArgument : String
+    
+    property esper : Esper
+    
+    
+    // call back
+    function onMessage(s1 : EventBean[100], s2 : EventBean[100]) @override "true"
+    do
+        print("Debug: listener thingml " + ''& s1 &'.size') // + " " + ''& s2 &'.size')
+        //var tmpSensor : String = ''&s1[0]&'.get("sensor")'
+        var i : Integer = 0
+        while(i < ''& s1 &'.size')do
+        var tmpVal : String = ''&s1[i]&'.get("val")'
+        var tmpUnit : String = ''&s1[i]&'get("unit")'
+        var tmpTime : String = ''&s1[i]&'.get("time")'
+        sensorDataOutput!sensorEvent(vsName, 'java.lang.Double.valueOf('&tmpVal&')', tmpUnit,  'java.lang.Long.valueOf('&tmpTime&')')
+        i = i + 1
+        end
+       
+        /*i = 0
+        while(i < ''& s2 &'.size')do
+        var tmpVal : String = ''&s2[i]&'.get("val")'
+        var tmpUnit : String = ''&s2[i]&'get("unit")'
+        var tmpTime : String = ''&s2[i]&'.get("time")'
+        sensorDataOutput!sensorEvent(vsName, 'java.lang.Double.valueOf('&tmpVal&')', tmpUnit,  'java.lang.Long.valueOf('&tmpTime&')')
+        i = i + 1
+        end*/
+    end  
+        
+	statechart behavior init Init
+	{
+        state Init 
+        {
+            on entry do
+               esper = 'new org.thingml.utils.esper.EsperSensorDataEngine()'
+              ''&esper&'.addStatement('& esperArgument &', root.asInstanceOf[org.thingml.utils.esper.EsperListener])'            
+            end  
+            
+            transition -> Start
+            event sensappPort?wsOpen
+            action do
+                var i : Integer = 0
+                while(i < size) do
+                	             if(setUpNotification[i] == true) sensappPort!setupNotification(sensors[i], vsName)
+                	i = i + 1
+                end
+            end
+            
+        }
+        
+        state Start
+        {
+            internal event input : sensorDataInput?sensorEvent
+            action do
+                var temp : Boolean = false
+                var i : Integer = 0
+                while(i < size)do
+                    if(input.sensor == sensors[i]) temp = true
+                    i = i + 1
+                end
+                if(temp) do
+                // weg
+                print("DEBUG: addDataPatter: " + input.sensor + " " + input.val + " " + input.time)
+            	''&esper&'.addEvent(new org.thingml.utils.esper.eventtypes.SensorData('& input.sensor &', '& input.val &', '& input.unit &', '& input.time &'))'
+                end
+            end           
+                
+        }
+	}
+}

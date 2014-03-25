@@ -1,0 +1,53 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../Adapters/csvAdapter.thingml"
+import "../VirtualSensors/CurveCompareVS.thingml"
+import "../VirtualSensors/ThresholdVS.thingml"
+
+
+configuration ProaSenseSetPointDeviation
+{  
+      
+	instance client : SensAppAdapter
+       set client._port = "ws://ec2-54-228-18-214.eu-west-1.compute.amazonaws.com:9000"
+
+    instance thresholdVS : ThresholdVS
+        set thresholdVS.vsName = "Scenario1ExamplePerformance"
+        set thresholdVS.thresholdUp = '1.0'
+        set thresholdVS.thresholdDown = '-1.0'
+        set thresholdVS.sensor = "DeviationPerformance"
+        set thresholdVS.setUpNotification = false
+
+    instance csv : CurveCompareVS 
+        set csv.vsName = "DeviationPerformance"
+        set csv.sensors[1] = "1002115"
+        set csv.sensors[0] = "1002113"
+        set csv.setUpNotification[0] = false
+        set csv.setUpNotification[1] = false
+    
+    instance inputWrapper : CsvAdapter
+        set inputWrapper.filename = "1002115"
+        // test file
+        set inputWrapper.filelocation = "..\\ProaSenseTestFiles\\15.csv"
+    
+    instance nominalWrapper : CsvAdapter
+        set nominalWrapper.filename = "1002113"
+        // test file
+        set nominalWrapper.filelocation = "..\\ProaSenseTestFiles\\13.csv"
+    
+    
+    // ws and nofitication
+    connector csv.sensappPort => client.sensappPort
+    // data input
+    connector csv.sensorDataInput => inputWrapper.sensorDataOutput
+    connector csv.sensorDataInput => nominalWrapper.sensorDataOutput
+    // data output
+    connector client.sensorDataInput => csv.sensorDataOutput
+    connector thresholdVS.sensorDataInput => csv.sensorDataOutput
+    
+    connector thresholdVS.sensappPort => client.sensappPort
+    connector client.sensorDataInput => thresholdVS.sensorDataOutput
+    
+    // weg
+    connector inputWrapper.sensappPort => client.sensappPort
+    connector nominalWrapper.sensappPort => client.sensappPort
+}

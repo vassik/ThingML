@@ -1,0 +1,157 @@
+import "VS.thingml"
+import "../../core/_scala/timer.thingml"
+import "../../core/timer.thingml"
+
+datatype ArrayList
+@java_type "java.util.ArrayList[Double]";
+
+thing AVS includes VS, TimerMsgs
+
+{	
+    	required port Timer
+	{
+		sends timer_start
+		receives timer_timeout
+	}
+	
+	property vsName : String
+    property sensor : String
+    property setUpNotification : Boolean
+    
+    
+    property aggregateType : aggregateType
+    property timeframe : Integer
+    
+    property values : ArrayList
+    property lasttime : Long
+    
+	function sumValues() : Double
+    do
+     var result : Double = '0.0'
+     if(''&values&'.size()' > 0) do
+      var i : Integer = 0
+      var size : Integer = ''&values&'.size()'
+       
+      // calc sum
+      while(i < size)
+      do
+        result = result + ''&values&'.get('&i&')'
+        i = i + 1
+      end 
+      end
+      return result    
+    end
+    
+    
+    function calcAvg() : Double
+    do
+      var avg : Double = '0.0'
+      if(''&values&'.size()' > 0) do
+      avg = sumValues(values)/''&values&'.size()'
+      end 
+      return avg     
+    end
+    
+   function getMin() : Double
+    do
+      var min : Double = '0.0'
+      if(''&values&'.size()' > 0) do
+        var i : Integer = 0
+        min = ''&values&'.get(0)'
+        var size : Integer = ''&values&'.size()'
+       
+        // find min
+        while(i < size)
+        do
+            if(min > ''&values&'.get('&i&')')do
+            min = ''&values&'.get('&i&')'
+        end
+        i = i + 1
+      end
+      end 
+      return min     
+    end
+    
+    function getMax() : Double
+    do
+      var max : Double = '0.0'
+      if(''&values&'.size()' > 0) do
+      var i : Integer = 0
+      var size : Integer = ''&values&'.size()'
+      max = ''&values&'.get(0)' 
+      // find max
+      while(i < size)
+      do
+        if(max < ''&values&'.get('&i&')')do
+        max = ''&values&'.get('&i&')'
+        end
+        i = i + 1
+      end
+      end
+      return max      
+    end
+    
+    function count() : Double
+    do    
+      return ''&values&'.size()'     
+    end
+           
+	statechart behaviour init Init
+	{
+        state Init 
+        {
+            on entry values =  'new java.util.ArrayList[Double]'
+            
+            transition -> Start
+            event sensappPort?wsOpen
+            action do
+              if(setUpNotification == true) do
+              sensappPort!setupNotification(sensor, vsName)
+              end
+            end
+                
+        }
+        
+		state Start
+		{
+            // collect data
+			on entry Timer!timer_start (timeframe)
+			
+			transition -> Start
+		    event Timer?timer_timeout
+            action do
+                // do task
+                var result : Double
+                values = values
+                if(aggregateType == 0) do
+                    result = sumValues()
+                end
+                if(aggregateType == 1) do
+                    result = calcAvg()
+                end
+                if(aggregateType == 2) do
+                    result = getMin()
+                end
+                if(aggregateType == 3) do
+                    result = getMax()
+                end
+                if(aggregateType == 4) do
+                    result = count()
+                end
+                // publish event 
+                sensorDataOutput!sensorEvent(vsName, result, "count", lasttime)
+                '' & values &'.clear()'
+                lasttime = 0
+            end
+
+
+			internal event in : sensorDataInput?sensorEvent
+            guard in.sensor == sensor
+			action do 
+                print("agg val received: " + in.time + " ")
+               ''&  values & '.add('& in.val &')'
+               lasttime = in.time 
+			end			 
+		}
+	}
+}

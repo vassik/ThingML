@@ -1,0 +1,53 @@
+import "Adapter.thingml"
+
+datatype BufferedReader
+@java_type "java.io.BufferedReader";
+
+datatype DateFormat
+@java_type "java.text.SimpleDateFormat";
+
+thing CsvAdapter includes Adapter, SensAppMassages
+{   
+    property reader : BufferedReader
+    property filename : String
+    property filelocation : String
+    
+    property format : DateFormat
+    
+    required port sensappPort {
+        receives wsOpen
+    }
+   
+    function transformTime(time : String) : Long 
+    do
+        format = 'new java.text.SimpleDateFormat()'
+        ''&format&'.applyPattern("dd/MM/yyyy HH:mm:ss.SSS")'
+        var formatted : Long = ''&format&'.parse('&time&').getTime()'
+        
+        return formatted
+        
+    end 
+      
+    statechart behavior init Init {
+ 
+        state Init {
+          //  on entry do
+             //weg   
+            internal event sensappPort?wsOpen
+            action do
+            // weg
+                reader = 'new java.io.BufferedReader(new java.io.FileReader('& filelocation &'))'
+                    
+                var line : String = ''& reader &'.readLine()'
+                while(not( line == 'null'))do
+
+                  var tmpTime : String = ''& line &'.split(",")'[0]
+                  var tmpVal : Double = 'java.lang.Double.valueOf('& line &'.split(",")'[1]&'.replaceAll("\\s",""))'  
+                
+                 sensorDataOutput!sensorEvent(filename, tmpVal, " ", transformTime(tmpTime))
+                  line = ''& reader &'.readLine()'
+                end
+            end       
+        }   
+}
+}

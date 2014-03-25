@@ -1,0 +1,75 @@
+import "VS.thingml"
+
+datatype Map
+@java_type "java.util.HashMap[Long,Double]";
+
+thing DiscomfortIndex includes VS
+
+{	
+	property vsName : String
+    property sensors : String[2]
+    property setUpNotification : Boolean[2]
+    
+    property map1 : Map
+    property map2 : Map 
+      
+    function calcIndex(timestamp : Long) 
+    do
+        // calculate index THI = t - (0.55 - 0.0055 * rh)(t - 14.5)
+        
+         var val1 : Double = ''&map1&'.get('& timestamp &')'
+         //print("temperature: " + val1)
+         var val2 : Double = ''&map2&'.get('& timestamp &')'
+         //print("relative humidity: " + val2)
+      
+        var result : Double = ''& val1 & ' - ((0.55 - (0.0055 * '& val2 &'))*('& val1 &' - 14.5))'
+        print("discomfort index: " + result)
+        
+        // generate event
+        sensorDataOutput!sensorEvent(vsName, result, "%", timestamp )
+        
+        // remove from HashMaps
+        '' &map1 & '.remove(' & timestamp & ')'
+        '' &map2 & '.remove(' & timestamp & ')'
+    end       
+                     
+	statechart behaviour init Init
+	{
+        state Init 
+        {
+            on entry do 
+              	map1 = 'new java.util.HashMap[Long, Double]'
+             	map2 = 'new java.util.HashMap[Long, Double]'        
+            end
+            
+            transition -> Start
+            event sensappPort?wsOpen
+            action do
+             if(setUpNotification[0] == true) sensappPort!setupNotification(sensors[0], vsName)
+             if(setUpNotification[1] == true) sensappPort!setupNotification(sensors[1], vsName)
+            end
+            
+         }
+         
+         state Start
+         {               
+            internal event in : sensorDataInput?sensorEvent
+            guard in.sensor == sensors[0]
+            action do
+                '' & map1 & '.put(' & in.time & ', ' & in.val & ')'
+                if ('' &map2 & '.containsKey(' & in.time & ')') do
+                    calcIndex(in.time)
+                end
+            end
+            
+            internal event in : sensorDataInput?sensorEvent
+            guard in.sensor == sensors[1]
+            action do
+                '' & map2 & '.put(' & in.time & ', ' & in.val & ')'
+                if ('' &map1 & '.containsKey(' & in.time & ')') do
+                 calcIndex(in.time)
+                end
+            end
+
+	}
+}

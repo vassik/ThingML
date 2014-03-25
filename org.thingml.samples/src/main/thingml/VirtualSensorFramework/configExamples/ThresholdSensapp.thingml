@@ -1,0 +1,31 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../VirtualSensors/ThresholdVS.thingml"
+
+configuration ThresholdVS
+{    
+	instance client : SensAppAdapter
+       set client._port = "ws://ec2-79-125-67-234.eu-west-1.compute.amazonaws.com:9000"
+
+    instance svs : ThresholdVS
+        set svs.vsName = "test1"
+        set svs.thresholdDown = 0
+        set svs.thresholdUp = 1
+        set svs.sensor = "Nexus_7JSS15R_Light"
+        set svs.setUpNotification = true
+    
+    connector svs.sensappPort => client.sensappPort
+    connector svs.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => svs.sensorDataOutput
+    
+        instance svs2 : ThresholdVS
+        set svs2.vsName = "test2"
+        set svs2.thresholdDown = 2
+        set svs2.thresholdUp = 3
+        set svs2.sensor = "Nexus_7JSS15R_OrientationZ"
+        set svs2.setUpNotification = true
+        
+    connector svs2.sensappPort => client.sensappPort
+    connector svs2.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => svs2.sensorDataOutput
+    
+}

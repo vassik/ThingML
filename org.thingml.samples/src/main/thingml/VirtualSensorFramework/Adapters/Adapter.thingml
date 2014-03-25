@@ -1,0 +1,16 @@
+import "../VSFMessages.thingml"
+import "../VSFDatatypes.thingml"
+
+thing fragment Adapter includes SensorDataMassages
+{
+    required port sensorDataInput
+    {
+       receives sensorEvent     
+    }
+    
+    provided port sensorDataOutput
+    {
+        sends sensorEvent
+    }    
+    
+}

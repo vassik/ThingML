@@ -1,0 +1,74 @@
+import "VS.thingml"
+
+datatype Map
+@java_type "java.util.HashMap[Long,Double]";
+
+thing CurveCompareVS includes VS
+
+{	
+	property vsName : String
+    property sensors : String[2]
+    property setUpNotification : Boolean[2] 
+ 
+    property measurements : Map
+    property nominal : Map 
+    
+   function compare(timestamp : Long) 
+    do
+        var val1 : Double = ''&measurements&'.get('& timestamp &')'
+        var val2 : Double = ''&nominal&'.get('& timestamp &')'
+  
+             
+        var result : Double = ''& val1 & ' - '& val2 &''
+        //print(result)
+        
+        // generate event
+        sensorDataOutput!sensorEvent(vsName, result, " ", timestamp )
+        
+        // remove from HashMap
+         '' &measurements & '.remove(' & timestamp & ')'
+         '' &nominal & '.remove(' & timestamp & ')'
+    end       
+                         
+	statechart behavior init Init
+	{
+        state Init 
+        { 
+            on entry do          
+              measurements = 'new java.util.HashMap[Long, Double]'
+              nominal = 'new java.util.HashMap[Long, Double]'        
+            end
+            
+            transition -> Start
+            event sensappPort?wsOpen
+            action do
+             if(setUpNotification[0] == true) sensappPort!setupNotification(sensors[0], vsName)
+             if(setUpNotification[1] == true) sensappPort!setupNotification(sensors[1], vsName)
+            end
+            
+         }
+         
+         state Start
+         {    
+                        
+            internal event in: sensorDataInput?sensorEvent
+            action do
+                // measurement
+                if(in.sensor == sensors[0]) do
+                '' & measurements & '.put(' & in.time & ', ' & in.val & ')'
+                if ('' &nominal & '.containsKey(' & in.time & ')') do
+                    compare(in.time)
+                end 
+                end
+                
+                // nominal value
+                 if(in.sensor == sensors[1]) do
+                '' & nominal & '.put(' & in.time & ', ' & in.val & ')'
+                if ('' &measurements & '.containsKey(' & in.time & ')') do
+                    compare(in.time)
+                end 
+                end
+            end  
+        }
+	}
+}

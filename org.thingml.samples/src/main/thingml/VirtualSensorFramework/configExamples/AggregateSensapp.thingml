@@ -1,0 +1,79 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../VirtualSensors/aggregateVS.thingml"
+
+configuration simpleVSsvsTest
+{    
+	instance client : SensAppAdapter
+       set client._port = "ws://ec2-79-125-67-234.eu-west-1.compute.amazonaws.com:9000"
+
+    instance avs : AVS
+        set avs.vsName = "SumTest"
+        set avs.sensor = "Nexus_7JSS15R_Light"
+        set avs.timeframe = 30000
+        set avs.aggregateType = 0
+        set avs.setUpNotification = true
+
+    instance timer : TimerScala
+    
+    instance avs2 : AVS
+        set avs2.vsName = "AvgTest"
+        set avs2.sensor = "Nexus_7JSS15R_Light"
+        set avs2.timeframe = 30000
+        set avs2.aggregateType = 1
+        set avs2.setUpNotification = true
+            
+    instance timer2 : TimerScala
+
+    instance avs3 : AVS
+        set avs3.vsName = "MinTest"
+        set avs3.sensor = "Nexus_7JSS15R_Light"
+        set avs3.timeframe = 30000
+        set avs3.aggregateType = 2
+        set avs3.setUpNotification = true
+            
+    instance timer3 : TimerScala
+    
+    instance avs4 : AVS
+        set avs4.vsName = "MaxTest"
+        set avs4.sensor = "Nexus_7JSS15R_Light"
+        set avs4.timeframe = 30000
+        set avs4.aggregateType = 3
+        set avs4.setUpNotification = true
+            
+    instance timer4 : TimerScala
+    
+    instance avs5 : AVS
+        set avs5.vsName = "CountTest"
+        set avs5.sensor = "Nexus_7JSS15R_Light"
+        set avs5.timeframe = 30000
+        set avs5.aggregateType = 4
+        set avs5.setUpNotification = true
+            
+    instance timer5 : TimerScala
+            
+    connector avs.sensappPort => client.sensappPort
+    connector avs.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => avs.sensorDataOutput
+    connector avs.Timer => timer.timer
+    
+    connector avs2.sensappPort => client.sensappPort
+    connector avs2.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => avs2.sensorDataOutput
+    connector avs2.Timer => timer2.timer
+    
+    connector avs3.sensappPort => client.sensappPort
+    connector avs3.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => avs3.sensorDataOutput
+    connector avs3.Timer => timer3.timer
+    
+    connector avs4.sensappPort => client.sensappPort
+    connector avs4.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => avs4.sensorDataOutput
+    connector avs4.Timer => timer4.timer
+    
+    connector avs5.sensappPort => client.sensappPort
+    connector avs5.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => avs5.sensorDataOutput
+    connector avs5.Timer => timer5.timer
+
+}

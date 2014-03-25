@@ -1,0 +1,61 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../VirtualSensors/Pattern.thingml"
+import "../VirtualSensors/DIndexVS.thingml"
+
+//there is an example and description of the whole workflow in 8.Test and Evaluation of SDEP of the Jessy's thesis
+
+configuration esperTest
+{    
+	instance client : SensAppAdapter
+       set client._port = "ws://ec2-79-125-67-234.eu-west-1.compute.amazonaws.com:9000"
+
+    instance test : EsperVS 
+                
+        set test.vsName = "test"
+        // Size of sensors array, look below test.sensors[0], test.sensors[1], test.sensors[2]
+        set test.size = 3
+        
+        //IMPORTANT:
+        // select sensor, val, unit, time is necessary!! For patterns, select stream.sensor as sensor etc !!!
+        // no linebreaks within the argument!!
+        // REMOVE LINEBREAKS !!!!!!!!!!!!!
+        set test.esperArgument = "select temp.sensor as sensor, 1.0 as val, temp.unit as unit, temp.time as time from pattern 
+        [every temp=org.thingml.utils.esper.eventtypes.SensorData(sensor='temp', val > 15.0) and 
+        uv=org.thingml.utils.esper.eventtypes.SensorData(sensor='uv', val < 2.0) and 
+        di=org.thingml.utils.esper.eventtypes.SensorData(sensor='discomfort_index', val < 10.0)] 
+        where temp.time = uv.time"
+        // example: temperature > 15
+        //IMPORTANT: 1)if these sensors are form sensApp, we have to use their names in sensapp database. We use these names to set up subsciption and notification stuff
+        // these are sources for the SensApp, they send data to sensApp
+        //2) these are input sources
+        set test.sensors[0] = "temp" // commign from sensapp
+        set test.sensors[1] = "uv" // comming from sensapp
+        set test.sensors[2] = "discomfort_index" // comming from the virtual sensor vs.vsName
+        
+        //if it is sett to true than the corresponding SensApp notifies virtual sensors when data is arrived from sources (look above, e.g. test.sensors[0])
+        set test.setUpNotification[0] = true
+        set test.setUpNotification[1] = true
+        set test.setUpNotification[2] = false
+        
+       instance vs : DiscomfortIndex
+        set vs.vsName = "discomfort_index"
+        // temperature 0, relative humidity 1
+        set vs.sensors[0] = "calc1"
+        set vs.sensors[1] = "calc2"
+        set vs.setUpNotification[0] = true
+        set vs.setUpNotification[1] = true 
+     
+    connector vs.sensappPort => client.sensappPort 
+    connector vs.sensorDataInput => client.sensorDataOutput
+    connector test.sensorDataInput => vs.sensorDataOutput
+    connector client.sensorDataInput => vs.sensorDataOutput 
+    
+    
+
+    connector test.sensappPort => client.sensappPort
+    connector test.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => test.sensorDataOutput
+}
+
+       //  set test.esperArgument = "select sensor, val, unit, time from org.thingml.utils.esper.eventtypes.SensorData(sensor='calc1').win:length(2) having avg(val) > 0.5"
+      //  set test.esperArgument = "every example=org.thingml.utils.esper.eventtypes.SensorData(sensor=\'calc1\')"     //and SensorData(sensor='calc2', val < 2.0)"

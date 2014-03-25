@@ -1,0 +1,25 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../Adapters/XmlAdapter.thingml"
+import "../VirtualSensors/XmlCompareVS.thingml"
+
+
+configuration svsTest
+{    
+	instance client : SensAppAdapter
+       set client._port = "ws://ec2-79-125-67-234.eu-west-1.compute.amazonaws.com:9000"
+
+    instance yrDs : XmlAdapter 
+
+    instance bvs : XmlCompareVS
+        set bvs.vsName = "basicYrVs"
+        set bvs.deviation = '0.1' 
+        set bvs.url = "http://www.yr.no/place/Norway/Oslo/Oslo/Oslo/forecast.xml"
+        set bvs.sensor = "Nexus_7JSS15R_Light"
+        set bvs.xPathField = "temperature/@value"
+        set bvs.setUpNotification = true
+    
+    connector bvs.sensappPort => client.sensappPort
+    connector bvs.sensorDataInput => client.sensorDataOutput
+    connector client.sensorDataInput => bvs.sensorDataOutput
+    connector bvs.xmlPort => yrDs.xmlPort
+}

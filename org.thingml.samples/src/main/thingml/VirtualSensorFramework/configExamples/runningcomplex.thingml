@@ -1,0 +1,85 @@
+import "../Adapters/sensappAdapter.thingml"
+import "../VirtualSensors/Pattern.thingml"
+import "../VirtualSensors/DIndexVS.thingml"
+import "../Adapters/XmlAdapter.thingml"
+import "../VirtualSensors/XmlCompareVS.thingml"
+import "../Adapters/sensappAdapter.thingml"
+import "../VirtualSensors/aggregateVS.thingml"
+
+configuration esperTest
+{    
+    instance client : SensAppAdapter
+       set client._port = "ws://ec2-54-228-18-214.eu-west-1.compute.amazonaws.com:9000"
+
+   // connector client.sensorDataInput => pattern.sensorDataOutput
+   // connector client.sensorDataInput => diIndex.sensorDataOutput 
+    connector client.sensorDataInput => count.sensorDataOutput 
+
+    instance yrAdapter : XmlAdapter 
+    
+       instance windspeedVS : XmlCompareVS
+        set windspeedVS.vsName = "windspeedFiltered"
+        set windspeedVS.url = "http://www.yr.no/place/Norway/Oslo/Oslo/Oslo/forecast.xml"
+       // set windspeedVS.url = "..\\Yr\\forecast.xml"
+		set windspeedVS.xPathField = "windSpeed/@mps"
+		set windspeedVS.sensor = "windspeed" 
+        set windspeedVS.setUpNotification = true
+		set windspeedVS.deviation = '0.2' 
+
+    connector windspeedVS.sensappPort => client.sensappPort
+    connector windspeedVS.sensorDataInput => client.sensorDataOutput
+    connector windspeedVS.xmlPort => yrAdapter.xmlPort 
+
+		// CalcVS fuer thesis
+       instance diIndex : DiscomfortIndex
+        set diIndex.vsName = "diIndex"
+        set diIndex.sensors[0] = "temperature"
+        set diIndex.sensors[1] = "rel_humidity"
+        set diIndex.setUpNotification[0] = true
+        set diIndex.setUpNotification[1] = true 
+        
+    connector diIndex.sensappPort => client.sensappPort
+    connector diIndex.sensorDataInput => client.sensorDataOutput 
+
+
+    // PatternVS fuer thesis
+    instance pattern : EsperVS 
+                
+        set pattern.vsName = "runningPatternVS"
+        set pattern.size = 3
+        
+        // select sensor, val, unit, time is necessary!! For patterns, select stream.sensor as sensor etc !!!
+        // no linebreaks within the argument!!
+        set pattern.esperArgument = "select ws.sensor as sensor, 1.0 as val, ws.unit as unit, ws.time as time from pattern 
+        [every ws=org.thingml.utils.esper.eventtypes.SensorData(sensor='windspeedFiltered', val < 3.0) and 
+        uv=org.thingml.utils.esper.eventtypes.SensorData(sensor='uv', val < 2.0) and 
+        di=org.thingml.utils.esper.eventtypes.SensorData(sensor='diIndex', val < 20.0)] 
+        where ws.time = uv.time"
+        // example: temperature > 15
+        set pattern.sensors[0] = "windspeedFiltered"
+        set pattern.sensors[1] = "uv"
+        set pattern.sensors[2] = "diIndex"
+        set pattern.setUpNotification[0] = false
+        set pattern.setUpNotification[1] = true
+        set pattern.setUpNotification[2] = false
+        
+   connector pattern.sensappPort => client.sensappPort
+   connector pattern.sensorDataInput => diIndex.sensorDataOutput
+   connector pattern.sensorDataInput => client.sensorDataOutput
+   connector pattern.sensorDataInput => windspeedVS.sensorDataOutput
+               
+     // AggregateVS fuer thesis   
+    instance count : AVS
+        set count.vsName = "Running"
+        set count.sensor = "runningPatternVS"
+        set count.timeframe = 30000
+        set count.aggregateType = 4
+        set count.setUpNotification = false 
+        
+    instance timer : TimerScala  
+    
+    connector count.sensappPort => client.sensappPort
+    connector count.sensorDataInput => pattern.sensorDataOutput
+    connector count.Timer => timer.timer
+
+}

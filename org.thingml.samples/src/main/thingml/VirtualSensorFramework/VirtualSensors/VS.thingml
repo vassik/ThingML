@@ -1,0 +1,20 @@
+import "../VSFMessages.thingml"
+import "../VSFDatatypes.thingml"
+
+thing fragment VS includes SensorDataMassages, SensAppMassages
+{
+    required port sensorDataInput
+    {
+       receives sensorEvent     
+    }
+    
+    provided port sensorDataOutput
+    {
+        sends sensorEvent
+    }
+    
+    required port sensappPort {
+		sends setupNotification
+        receives wsOpen
+	}
+}

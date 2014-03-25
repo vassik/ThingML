@@ -1,0 +1,44 @@
+import "VS.thingml"
+
+thing ThresholdVS includes VS
+{
+
+	property vsName : String
+    property sensor : String
+    property setUpNotification : Boolean
+    
+    property thresholdUp : Double
+	property thresholdDown : Double
+  
+	statechart behaviour init Init
+	{
+        state Init 
+        {
+            transition -> Start
+            event sensappPort?wsOpen
+            action do
+            if(setUpNotification == true) do
+              sensappPort!setupNotification(sensor, vsName)
+            end
+            end
+                
+        }
+        
+		state Start
+		{
+			internal event in : sensorDataInput?sensorEvent
+            guard in.sensor == sensor
+			action do 
+                 if ( in.val < thresholdDown ) do
+			         sensorDataOutput!sensorEvent(vsName, in.val, in.unit, in.time )
+                     print(" Lower threshold reached: value = " + in.val + " threshold = " + thresholdDown)
+	             end		
+		
+	             if ( in.val > thresholdUp ) do
+		             sensorDataOutput!sensorEvent(vsName, in.val, in.unit, in.time )
+                     print(" Upper threshold reached: value = " + in.val + " threshold = " + thresholdUp)
+	             end
+			end			 
+		}
+	}  
+}
