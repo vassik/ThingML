@@ -21,27 +21,34 @@
  */
 package org.thingml.networkplugins.js;
 
-import com.eclipsesource.json.JsonObject;
-import org.apache.commons.io.IOUtils;
-import org.eclipse.emf.ecore.util.EcoreUtil;
-import org.sintef.thingml.*;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.thingml.compilers.Context;
-import org.thingml.compilers.spi.NetworkPlugin;
-import org.thingml.compilers.spi.SerializationPlugin;
-
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class JsWSPlugin extends NetworkPlugin {
+import org.apache.commons.io.IOUtils;
+import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.thingml.compilers.Context;
+import org.thingml.compilers.spi.NetworkPlugin;
+import org.thingml.compilers.spi.SerializationPlugin;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Protocol;
 
-    public JsWSPlugin() {
-        super();
-    }
+import com.eclipsesource.json.JsonObject;
+
+public class JsWSPlugin extends NetworkPlugin {
 
     public String getPluginID() {
         return "JsWSPlugin";
@@ -62,10 +69,6 @@ public class JsWSPlugin extends NetworkPlugin {
     }
 
     final Set<Message> messages = new HashSet<Message>();
-
-    private void clearMessages() {
-        messages.clear();
-    }
 
     private void addMessage(Message m) {
         boolean contains = false;
@@ -246,14 +249,18 @@ public class JsWSPlugin extends NetworkPlugin {
                 final String url = AnnotatedElementHelper.annotationOrElse(conn.getProtocol(), "url", "ws://127.0.0.1");
 
                 main = main.replace("/*$REQUIRE_PLUGINS$*/", "/*$REQUIRE_PLUGINS$*/\nconst websocket = require('./WSJS');");
-                main = main.replace("/*$PLUGINS$*/", "/*$PLUGINS$*/\nconst ws = new websocket(\"WS\", false, \"" + url + "\", " + conn.getInst().getInstance().getName() + ");\n");
+                main = main.replace("/*$PLUGINS$*/", "/*$PLUGINS$*/\nconst ws = new websocket(\"WS\", false, \"" + url + "\", " + conn.getInst().getName() + ");\n");
                 main = main.replace("/*$STOP_PLUGINS$*/", "ws._stop();\n/*$STOP_PLUGINS$*/\n");
 
                 StringBuilder builder = new StringBuilder();
                 for (Message req : conn.getPort().getSends()) {
-                    builder.append(conn.getInst().getInstance().getName() + "." + req.getName() + "On" + conn.getPort().getName() + "Listeners.push(");
-                    builder.append("ws.receive" + req.getName() + "On" + conn.getPort().getName() + ".bind(ws)");
+                    builder.append(conn.getInst().getName() + ".bus.on('" + conn.getPort().getName() + "?" + req.getName() + "', ");
+                    builder.append("(msg) => ws.receive" + req.getName() + "On" + conn.getPort().getName() + "(msg)");
                     builder.append(");\n");
+
+                    /*builder.append(conn.getInst().getInstance().getName() + "." + req.getName() + "On" + conn.getPort().getName() + "Listeners.push(");
+                    builder.append("ws.receive" + req.getName() + "On" + conn.getPort().getName() + ".bind(ws)");
+                    builder.append(");\n");*/
                 }
                 main = main.replace("/*$PLUGINS_CONNECTORS$*/", builder.toString() + "\n/*$PLUGINS_CONNECTORS$*/");
 

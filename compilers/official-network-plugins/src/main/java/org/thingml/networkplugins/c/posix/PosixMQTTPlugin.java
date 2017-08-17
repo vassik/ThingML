@@ -21,29 +21,37 @@
  */
 package org.thingml.networkplugins.c.posix;
 
-import org.sintef.thingml.*;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.sintef.thingml.helpers.ConfigurationHelper;
-import org.sintef.thingml.impl.ThingmlFactoryImpl;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.thingml.compilers.Context;
+import org.thingml.compilers.c.CCfgMainGenerator;
 import org.thingml.compilers.c.CCompilerContext;
 import org.thingml.compilers.spi.NetworkPlugin;
 import org.thingml.compilers.spi.SerializationPlugin;
-
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import org.thingml.compilers.c.CPluginHelper;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.PlatformAnnotation;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Protocol;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.thingML.ThingMLFactory;
+import org.thingml.xtext.thingML.impl.ThingMLFactoryImpl;
 
 /**
  *
  * @author sintef
  */
 public class PosixMQTTPlugin extends NetworkPlugin {
-    CCompilerContext ctx;
+
+	CCompilerContext ctx;
     Configuration cfg;
 
     public String getPluginID() {
@@ -53,6 +61,10 @@ public class PosixMQTTPlugin extends NetworkPlugin {
     public List<String> getSupportedProtocols() {
         List<String> res = new ArrayList<>();
         res.add("MQTT");
+        res.add("MQTT1");
+        res.add("MQTT2");
+        res.add("MQTT3");
+        res.add("MQTT4");
         res.add("mqtt");
         return res;
     }
@@ -66,8 +78,8 @@ public class PosixMQTTPlugin extends NetworkPlugin {
 
     private void addDependencies() {
         if (!ctx.hasAnnotationWithValue(cfg, "add_c_libraries", "mosquitto")) {
-            ThingmlFactory factory;
-            factory = ThingmlFactoryImpl.init();
+            ThingMLFactory factory;
+            factory = ThingMLFactoryImpl.init();
             PlatformAnnotation pan = factory.createPlatformAnnotation();
             pan.setName("add_c_libraries");
             pan.setValue("mosquitto");
@@ -104,11 +116,63 @@ public class PosixMQTTPlugin extends NetworkPlugin {
         Set<ExternalConnector> ecos;
         Protocol protocol;
         Set<Message> messages;
+        Map<String, Integer> topicMap;
         SerializationPlugin sp;
 
         MQTTPort() {
             ecos = new HashSet<>();
             messages = new HashSet();
+            topicMap = new HashMap<>();
+        }
+
+        List<Integer> findPublishTopicIndices(Protocol prot, ExternalConnector eco) {
+            Set<String> topics = new HashSet<>();
+
+            if (AnnotatedElementHelper.hasAnnotation(eco, "mqtt_topic") || AnnotatedElementHelper.hasAnnotation(eco, "mqtt_publish_topic")) {
+                // Topic defined on the connector
+                topics.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_topic"));
+                topics.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_publish_topic"));
+            } else if (AnnotatedElementHelper.hasAnnotation(prot, "mqtt_topic") || AnnotatedElementHelper.hasAnnotation(prot, "mqtt_publish_topic")) {
+                // Topic defined on the protocol
+                topics.addAll(AnnotatedElementHelper.annotation(prot, "mqtt_topic"));
+                topics.addAll(AnnotatedElementHelper.annotation(prot, "mqtt_publish_topic"));
+            } else {
+                // Nothing is specified, use the ThingML topic
+                topics.add("ThingML");
+            }
+
+            List<Integer> res = new ArrayList<>();
+            for (String topic : topics) {
+                res.add(topicMap.get(topic));
+            }
+            return res;
+        }
+
+        List<Integer> findSubscribeTopicIndices(Protocol prot, Set<ExternalConnector> ecos) {
+            // TODO Do this based on each external connector, not for all of them globally
+            Set<String> topics = new HashSet<>();
+
+            if (AnnotatedElementHelper.hasAnnotation(prot, "mqtt_topic") || AnnotatedElementHelper.hasAnnotation(prot, "mqtt_subscribe_topic")) {
+                topics.addAll(AnnotatedElementHelper.annotation(prot, "mqtt_topic"));
+                topics.addAll(AnnotatedElementHelper.annotation(prot, "mqtt_subscribe_topic"));
+            }
+            for (ExternalConnector eco : ecos) {
+                if (AnnotatedElementHelper.hasAnnotation(eco, "mqtt_topic") || AnnotatedElementHelper.hasAnnotation(eco, "mqtt_subscribe_topic")) {
+                    // Topic defined on the connector
+                    topics.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_topic"));
+                    topics.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_subscribe_topic"));
+                }
+            }
+            if (topics.isEmpty()) {
+                // Nothing is specified, use the ThingML topic
+                topics.add("ThingML");
+            }
+
+            List<Integer> res = new ArrayList<>();
+            for (String topic : topics) {
+                res.add(topicMap.get(topic));
+            }
+            return res;
         }
 
         public void generateNetworkLibrary() {
@@ -118,9 +182,25 @@ public class PosixMQTTPlugin extends NetworkPlugin {
                     messages.add(m);
                 }
 
-                // Topics
-                List<String> topicList = AnnotatedElementHelper.annotation(protocol, "mqtt_topic");
-                if (topicList.isEmpty()) topicList.add("ThingML");
+                /* ---------- Topics ---------- */
+                Set<String> topicList = new HashSet<String>();
+                topicList.add("ThingML"); // The default ThingML topic should always be available in the map
+                // All topics defined on the protocol
+                topicList.addAll(AnnotatedElementHelper.annotation(protocol, "mqtt_topic"));
+                topicList.addAll(AnnotatedElementHelper.annotation(protocol, "mqtt_publish_topic"));
+                topicList.addAll(AnnotatedElementHelper.annotation(protocol, "mqtt_subscribe_topic"));
+                // All topics defined on the connectors
+                for (ExternalConnector eco : ecos) {
+                    topicList.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_topic"));
+                    topicList.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_publish_topic"));
+                    topicList.addAll(AnnotatedElementHelper.annotation(eco, "mqtt_subscribe_topic"));
+                }
+                // Create a map of topic names to indices
+                Integer i = 0;
+                for (String topic : topicList) {
+                    topicMap.put(topic, i);
+                    i++;
+                }
 
                 String platform = "";
                 String ctemplate = "";
@@ -130,16 +210,8 @@ public class PosixMQTTPlugin extends NetworkPlugin {
                 String portName = protocol.getName();
 
                 /* ---------- General initialisation ---------- */
-                // TODO Jakob, this is kind of hack-ish
-                // Section copied from CCfgMainGenerator.java - generateIncludes
-                StringBuilder includes = new StringBuilder();
-                ThingMLModel model = ThingMLHelpers.findContainingModel(cfg);
-                for (Thing t : ConfigurationHelper.allThings(cfg)) {
-                  includes.append("#include \"" + t.getName() + ".h\"\n");
-                }
-                includes.append(ctx.getIncludeCode());
-                htemplate = htemplate.replace("/*INCLUDES*/",includes);
-                // End hack-ish section
+                CCfgMainGenerator mainGenerator = (CCfgMainGenerator)ctx.getCompiler().getMainCompiler();
+                htemplate = htemplate.replace("/*INCLUDES*/", mainGenerator.generateThingIncludes(cfg, ctx));
 
                 // Replace PORT_NAME
                 ctemplate = ctemplate.replace("/*PORT_NAME*/", portName);
@@ -169,7 +241,7 @@ public class PosixMQTTPlugin extends NetworkPlugin {
                 }
 
                 /* ---------- Topic initialisation ---------- */
-                String topics = "\""+String.join("\"\n\"", topicList)+"\"";
+                String topics = "\""+String.join("\",\n    \"", topicList)+"\"";
                 Integer topicsLength = topicList.size();
                 ctemplate = ctemplate.replace("/*TOPICS*/", topics);
                 ctemplate = ctemplate.replace("/*NUM_TOPICS*/", topicsLength.toString());
@@ -182,6 +254,13 @@ public class PosixMQTTPlugin extends NetworkPlugin {
                 parserImplementation.append("\n}");
 
                 ctemplate = ctemplate.replace("/*PARSER_IMPLEMENTATION*/", sp.generateSubFunctions() + parserImplementation);
+
+                List<Integer> subscribeTopicIndices = findSubscribeTopicIndices(protocol, ecos);
+                List<String> topicIndexCheck = new ArrayList<>();
+                for (Integer index : subscribeTopicIndices) {
+                    topicIndexCheck.add("i == "+index);
+                }
+                ctemplate = ctemplate.replace("/*TOPIC_INDEX_CHECK*/", String.join(" || ", topicIndexCheck));
 
 
                 /* ---------- Message forwarders ---------- */
@@ -208,15 +287,8 @@ public class PosixMQTTPlugin extends NetworkPlugin {
                 ctx.addToInitCode("// Initialise " + protocol.getName() + ":");
                 ctx.addToInitCode(portName + "_instance.listener_id = add_instance(&" + portName + "_instance);");
                 ctx.addToInitCode(protocol.getName() + "_setup(&"+portName+"_instance);");
-
-                if (ctx.getCompiler().getID() == "posixmt") {
-                    // Multi-threaded compiler
-                    ctx.addToInitCode("pthread_t thread_"+protocol.getName()+";");
-                    ctx.addToInitCode("pthread_create( &thread_"+protocol.getName()+", NULL, "+protocol.getName()+"_start_receiver_thread, NULL);\n");
-                } else {
-                    // Single-threaded compiler
-                    ctx.addToPollCode(protocol.getName()+"_loop_pool();\n");
-                }
+                ctx.addToInitCode("pthread_t thread_"+protocol.getName()+";");
+                ctx.addToInitCode("pthread_create( &thread_"+protocol.getName()+", NULL, "+protocol.getName()+"_start_receiver_thread, NULL);\n");
 
 
                 /* ----------- Append generated code file and to init in Configuration code ---------- */
@@ -230,38 +302,34 @@ public class PosixMQTTPlugin extends NetworkPlugin {
         }
 
         public void generateMessageForwarders(StringBuilder builder, StringBuilder headerbuilder, Configuration cfg, Protocol prot) {
-            for (ThingPortMessage tpm : getMessagesSent(cfg, prot)) {
-                Thing t = tpm.t;
-                Port p = tpm.p;
-                Message m = tpm.m;
+            for (ExternalConnector eco : ecos) {
+                // Generate forwarders
+                for (ThingPortMessage tpm : getMessagesSent(eco)) {
+                    Thing t = tpm.t;
+                    Port p = tpm.p;
+                    Message m = tpm.m;
 
-                SerializationPlugin sp = null;
-                try {
-                    sp = ctx.getSerializationPlugin(prot);
-                } catch (UnsupportedEncodingException uee) {
-                    System.err.println("Could not get serialization plugin... Expect some errors in the generated code");
-                    uee.printStackTrace();
-                    return;
+                    builder.append("// Forwarding of messages " + prot.getName() + "::" + t.getName() + "::" + p.getName() + "::" + m.getName() + "\n");
+                    builder.append("void forward_" + prot.getName() + "_" + ctx.getSenderName(t, p, m));
+                    ctx.appendFormalParameters(t, builder, m);
+                    builder.append("{\n");
+
+                    String lengthVar = sp.generateSerialization(builder, "buffer", m, eco);
+
+                    // Send the message over MQTT
+                    List<Integer> topicIndices = findPublishTopicIndices(prot, eco);
+                    builder.append("\n    // Publish the serialized message\n");
+                    for (Integer topicIndex : topicIndices) {
+                        builder.append("    " + prot.getName() + "_send_message(buffer, " + lengthVar + ", " + topicIndex + ");\n");
+                    }
+                    builder.append("}\n\n");
+
+                    // Add declaration in header
+                    headerbuilder.append("// Forwarding of messages " + prot.getName() + "::" + t.getName() + "::" + p.getName() + "::" + m.getName() + "\n");
+                    headerbuilder.append("void forward_" + prot.getName() + "_" + ctx.getSenderName(t, p, m));
+                    ctx.appendFormalParameters(t, headerbuilder, m);
+                    headerbuilder.append(";\n");
                 }
-
-                builder.append("// Forwarding of messages " + prot.getName() + "::" + t.getName() + "::" + p.getName() + "::" + m.getName() + "\n");
-                builder.append("void forward_" + prot.getName() + "_" + ctx.getSenderName(t, p, m));
-                ctx.appendFormalParameters(t, builder, m);
-                builder.append("{\n");
-
-                String lengthVar = sp.generateSerialization(builder, "buffer", m);
-
-                // Send the message over MQTT
-                builder.append("\n    // Publish the serialized message\n");
-                builder.append("    "+prot.getName()+"_send_message(buffer, "+lengthVar+");\n");
-                builder.append("}\n\n");
-
-                // Add declaration in header
-                headerbuilder.append("// Forwarding of messages " + prot.getName() + "::" + t.getName() + "::" + p.getName() + "::" + m.getName() + "\n");
-                headerbuilder.append("void forward_" + prot.getName() + "_" + ctx.getSenderName(t, p, m));
-                ctx.appendFormalParameters(t, headerbuilder, m);
-                headerbuilder.append(";\n");
-
             }
         }
     }

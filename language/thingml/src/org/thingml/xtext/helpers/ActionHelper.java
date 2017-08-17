@@ -16,12 +16,13 @@
  */
 package org.thingml.xtext.helpers;
 
-import org.eclipse.emf.common.util.TreeIterator;
-import org.eclipse.emf.ecore.EObject;
-import org.thingml.xtext.thingML.*;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import org.eclipse.emf.common.util.TreeIterator;
+import org.eclipse.emf.ecore.EObject;
+import org.thingml.xtext.thingML.Action;
+import org.thingml.xtext.thingML.Thing;
 
 /**
  * Created by ffl on 03.05.2016.
@@ -29,16 +30,24 @@ import java.util.List;
 public class ActionHelper {
 
 
-    public static List<Action> getAllActions(EObject self, Class clazz) {
-        List<Action> result = new ArrayList<Action>();
+    public static <T extends Action> List<T> getAllActions(EObject self, Class<T> clazz) {
+        List<T> result = new ArrayList<T>();
 
         TreeIterator<EObject> it = self.eAllContents();
         while(it.hasNext()) {
             EObject o = it.next();
-            if (clazz.isInstance(o)) result.add((Action) o);
+            if (clazz.isInstance(o)) result.add((T) o);
         }
-
-        if (clazz.isInstance(self)) result.add((Action)self);
+        
+        if (self instanceof Thing) {//We need this to get all the actions defined in included Things, as they are not part of self.eAllContents. This should be the only case where we need a hack...
+        	Thing t = (Thing) self;
+        	for(Thing i : ThingHelper.allIncludedThings(t)) {
+        		result.addAll(getAllActions(i, clazz));
+        	}
+        } else {
+        	if (clazz.isInstance(self)) result.add((T)self);
+        }
+        
         return result;
     }
 

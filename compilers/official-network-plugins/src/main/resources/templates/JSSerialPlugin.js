@@ -25,18 +25,18 @@ function /*$NAME$*/(name, debug, port, baudrate, instance, callback) {
     const RCV_ESC = 2;
   	var state = RCV_WAIT;
 
-	 serial.on('open', function() {
+	 serial.on('open', () => {
 		 this.ready = true;
 		 callback(true)
 	 });
 
-	 serial.on('error', function(err) {
+	 serial.on('error', (err) => {
          console.log("Error during communication: " + err);
    		 this.ready = false;
          callback(false);
      });
 
-    serial.on('data', function(received) {
+    serial.on('data', (received) => {
         Array.apply([], received).forEach(function(data) {
             if (state == RCV_WAIT) { // it should be a start byte or we just ignore it
                 if (data == START_BYTE) {
@@ -78,6 +78,7 @@ function /*$NAME$*/(name, debug, port, baudrate, instance, callback) {
             }
         });
     });
+}
 
     /*$RECEIVERS$*/
 
@@ -89,6 +90,5 @@ function /*$NAME$*/(name, debug, port, baudrate, instance, callback) {
 			console.log("Something went wrong when closing serial port " + port + " at " + baudrate + ":\n\t" + error);
 		});
 	};
-};
 
 module.exports = /*$NAME$*/;

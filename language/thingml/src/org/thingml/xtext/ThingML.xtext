@@ -16,13 +16,24 @@ Import returns ThingMLModel:
 ;
 */
 PlatformAnnotation returns PlatformAnnotation:
-	'@' name=ID value=STRING_LIT ; 
+	name=ANNOTATION_ID value=STRING_LIT ; 
 
-AnnotatedElement:
-	Protocol | Function | Property | Message | Parameter | Port | Configuration | Handler | State | CompositeState | 
-	FinalState | Type | PropertyAssign | Stream | Session | ParallelRegion | LocalVariable | Instance | AbstractConnector
+
+NamedElement:
+	Protocol | Function  | Message | Port | Configuration | Handler | State | StateContainer | 
+	Type | Variable | Instance | AbstractConnector | EnumerationLiteral | Event |
+	";" name=ID // This is never used, it is just to have the attributes in the superclass
 ;
 
+AnnotatedElement:
+	Protocol | Function  | Message | Port | Configuration | Handler | State | StateContainer | 
+	Type | PropertyAssign | Variable | Instance | AbstractConnector | EnumerationLiteral |
+	";" ( annotations+=PlatformAnnotation )* // This is never used, it is just to have the attributes in the superclass
+;
+
+Variable:
+	"var" name=ID ':' typeRef=TypeRef | // This is never used, it is just to have the attributes in the superclass
+	LocalVariable | Property | Parameter ;
 
 /*****************************************************************************
  *       TYPES / ENUMERATIONS                                                *
@@ -54,7 +65,7 @@ EnumerationLiteral returns EnumerationLiteral:
 Thing returns Thing:
 	'thing' (^fragment?='fragment')? name=ID ('includes' includes+=[Thing|ID] ( "," includes+=[Thing|ID])*)? 
 	( annotations+=PlatformAnnotation )*'{'
-		(messages+=Message | ports += Port | properties+=Property | functions+=Function | assign+=PropertyAssign | behaviour+=StateMachine | streams+=Stream)* 
+		(messages+=Message | ports += Port | properties+=Property | functions+=Function | assign+=PropertyAssign | behaviour+=StateMachine /* | streams+=Stream*/)* 
 	'}';
 
 PropertyAssign returns PropertyAssign:
@@ -64,17 +75,18 @@ Protocol returns Protocol:
 	'protocol' name=ID ( annotations+=PlatformAnnotation )* ';';
 
 Function returns Function:
-	'function' name=ID '(' (parameters+=Parameter ( "," parameters+=Parameter)* )? ')' (':' typeRef=TypeRef)? ( annotations+=PlatformAnnotation )* body=Action
-		//('isArray' isArray=EBoolean)?
-		//('cardinality' cardinality=Expression)?
+	'function' name=ID '(' (parameters+=Parameter ( "," parameters+=Parameter)* )? ')' (':' typeRef=TypeRef)? 
+							( annotations+=PlatformAnnotation )* body=Action | AbstractFunction
+;
+
+AbstractFunction returns Function:
+	abstract?='abstract' 'function' name=ID '(' (parameters+=Parameter ( "," parameters+=Parameter)* )? ')' (':' typeRef=TypeRef)? 
+							( annotations+=PlatformAnnotation )* 
 ;
 
 Property returns Property:
-	(^changeable?='readonly')? 'property' name=ID ':' typeRef=TypeRef ( '=' init=Expression)?
+	(readonly?='readonly')? 'property' name=ID ':' typeRef=TypeRef ( '=' init=Expression)?
 	( annotations+=PlatformAnnotation )*
-		//('isArray' isArray=EBoolean)?
-		//('changeable' changeable=EBoolean)?
-		//('cardinality' cardinality=Expression)?
 ;
 
 Message returns Message:
@@ -83,8 +95,6 @@ Message returns Message:
 	
 Parameter returns Parameter:
 	name=ID ':' typeRef=TypeRef ( annotations+=PlatformAnnotation )*
-//		('isArray' isArray=EBoolean)?
-//		('cardinality' cardinality=Expression)?
 ;
 
 Port returns Port:
@@ -109,104 +119,13 @@ InternalPort returns InternalPort:
 		('receives' receives+=[Message|ID] ( "," receives+=[Message|ID])* ))*
 	'}';
 
-/*****************************************************************************
- *       CEP STREAMS                                                         *
- *****************************************************************************/
-	
-Stream returns Stream:
-	'stream' name=ID ( annotations+=PlatformAnnotation )* 'from' input=Source
-	('select' selection+=LocalVariable ( "," selection+=LocalVariable)*)?
-	'produce' output=SendAction ;
-	
-Source returns Source:
-	JoinSources | MergeSources | SimpleSource;
-
-ViewSource returns ViewSource:
-	Filter | LengthWindow | TimeWindow;	
-
-ReferencedElmt returns ReferencedElmt:
-	Message | Parameter | Property | ReceiveMessage | LocalVariable | JoinSources | MergeSources | SimpleSource | MessageParameter;
-
-ElmtProperty returns ElmtProperty:
-	SimpleParamRef | ArrayParamRef | LengthArray;
-
-
-JoinSources returns JoinSources:
-	'join' name=ID ':' '[' sources+=Source ( "&" sources+=Source)* '->' resultMessage=[Message|ID] '(' rules+=Expression ( "," rules+=Expression)* ')' ']' ('::' operators+=ViewSource)*;
-
-MergeSources returns MergeSources:
-	'merge' name=ID ':' '[' sources+=Source ( "|" sources+=Source)* '->' resultMessage=[Message|ID] ']' ('::' operators+=ViewSource)*;
-
-SimpleSource returns SimpleSource:
-	name=ID ':' message=ReceiveMessage  ('::' operators+=ViewSource)*;
-
-Filter returns Filter:
-	'keep' 'if' guard=Expression;
-
-LengthWindow returns LengthWindow:
-	'buffer' size=Expression ('by' step=Expression)?;
-
-TimeWindow returns TimeWindow:
-	'during' duration=Expression ('by' step=Expression)?;
-
-MessageParameter returns MessageParameter:
-	name=ID ':' msgRef=[Message|ID] ;
-
-SimpleParamRef returns SimpleParamRef:
-	parameterRef=[Parameter|ID];
-
-ArrayParamRef returns ArrayParamRef:
-	parameterRef=[Parameter|ID] '[' ']';
-
-LengthArray returns LengthArray:
-	{LengthArray}
-	'length';
 
 /*****************************************************************************
  *       STATE MECHINES                                                      *
  *****************************************************************************/
 
-Region:
-	CompositeState | ParallelRegion | Session;
-
-StateMachine returns CompositeState:
-	'statechart' (name=ID)? 'init' initial=[State|ID] ('keeps' history?='history')?	( annotations+=PlatformAnnotation )* '{'
-		(properties+=Property)*
-		('on' 'entry' entry=Action)?
-		('on' 'exit' exit=Action)?
-		(substate+=State | internal+=InternalTransition)*
-		(region+=ParallelRegion)*
-	'}';
-	
-FinalState returns FinalState:
-	'final' 'state' name=ID ( annotations+=PlatformAnnotation )* '{' ('on' 'entry' entry=Action)? '}'
-;
-
-CompositeState returns CompositeState:
-	'composite' 'state' name=ID 'init' initial=[State|ID] ('keeps' history?='history')?	( annotations+=PlatformAnnotation )* '{'
-		(properties+=Property)*
-		('on' 'entry' entry=Action)?
-		('on' 'exit' exit=Action)?
-		(substate+=State | internal+=InternalTransition | outgoing+=Transition)*
-		(region+=ParallelRegion)*
-	'}';
-
-Session returns Session:
-	'session' name=ID ('<' maxInstances=INT '>')? 'init' initial=[State|ID] ( annotations+=PlatformAnnotation )* '{'
-		(properties+=Property)*
-		('on' 'entry' entry=Action)?
-		('on' 'exit' exit=Action)?
-		(substate+=State | internal+=InternalTransition)*
-		(region+=ParallelRegion)*
-	'}';
-
-ParallelRegion returns ParallelRegion:
-	'region' (name=ID)? 'init' initial=[State|ID] ('keeps' history?='history')?	( annotations+=PlatformAnnotation )* '{'
-		(substate+=State)*
-	'}';
-	
 State returns State:
-	StateMachine | FinalState | CompositeState | Session |
+	StateMachine | FinalState | CompositeState |
 	'state' name=ID ( annotations+=PlatformAnnotation )* '{'
 		(properties+=Property)*
 		('on' 'entry' entry=Action)?
@@ -233,11 +152,55 @@ InternalTransition returns InternalTransition:
 	('guard' guard=Expression)?
 	('action' action=Action)?;
 
-Event returns Event:
+
+CompositeState returns CompositeState:
+	'composite' 'state' name=ID 'init' initial=[State|ID] ('keeps' history?='history')?	( annotations+=PlatformAnnotation )* '{'
+		(properties+=Property)*
+		('on' 'entry' entry=Action)?
+		('on' 'exit' exit=Action)?
+		(substate+=State | internal+=InternalTransition | outgoing+=Transition)*
+		(region+=Region | session+=Session)*
+	'}';
+
+StateMachine returns CompositeState: // Actually only another syntax for a composite state
+	'statechart' (name=ID)? 'init' initial=[State|ID] ('keeps' history?='history')?	( annotations+=PlatformAnnotation )* '{'
+		(properties+=Property)*
+		('on' 'entry' entry=Action)?
+		('on' 'exit' exit=Action)?
+		(substate+=State | internal+=InternalTransition)*
+		(region+=Region | session+=Session)*
+	'}';
+
+Session returns Session:
+	'session' name=ID ('<' maxInstances=(IntegerLiteral | PropertyReference) '>')? 'init' initial=[State|ID] ( annotations+=PlatformAnnotation )* '{'
+		(substate+=State)*
+	'}';
+
+Region returns Region:
+	'region' (name=ID)? 'init' initial=[State|ID] ('keeps' history?='history')?	( annotations+=PlatformAnnotation )* '{'
+		(substate+=State)*
+	'}';
+
+FinalState returns FinalState:
+	'final' 'state' name=ID ( annotations+=PlatformAnnotation )* '{' ('on' 'entry' entry=Action)? '}'
+;
+
+StateContainer:
+	CompositeState | Region | Session |
+	'keeps' initial=[State|ID] ('keeps' history?='history')?	 '{' // This is never used, it is just to have the attributes in the superclass
+		(substate+=State)*
+	'}'
+;
+
+/*****************************************************************************
+ *       EVENTS                                                             *
+ *****************************************************************************/
+Event:
 	ReceiveMessage;
 
 ReceiveMessage returns ReceiveMessage:
 	(name=ID ":")? port=[Port|ID]'?'message=[Message|ID];
+
 
 /*****************************************************************************
  *       ACTIONS                                                             *
@@ -247,8 +210,6 @@ Action returns Action:
 	ActionBlock | ExternStatement | SendAction | VariableAssignment | Increment | Decrement | LoopAction |
 	ConditionalAction | ReturnAction | PrintAction | ErrorAction | StartSession | FunctionCallStatement | LocalVariable;
 
-Variable:
-	LocalVariable | Property | Parameter ;
 
 ActionBlock returns ActionBlock:
 	{ActionBlock}
@@ -258,9 +219,7 @@ ExternStatement returns ExternStatement:
 	statement = STRING_EXT ('&' segments+=Expression)*;
 	
 LocalVariable returns LocalVariable:
-	(^changeable?='readonly')? 'var' name=ID ':'  typeRef=TypeRef ( '=' init=Expression)? ( annotations+=PlatformAnnotation )*
-		//('isArray' isArray=EBoolean)?
-		//('cardinality' cardinality=Expression)?
+	(readonly?='readonly')? 'var' name=ID ':'  typeRef=TypeRef ( '=' init=Expression)? ( annotations+=PlatformAnnotation )*
 ;
 
 SendAction returns SendAction:
@@ -309,7 +268,11 @@ FunctionCallStatement returns FunctionCallStatement:
 	//ExpressionGroup | FunctionCallExpression | MessageParameter | Reference;
 
 
-Expression: OrExpression;
+Expression: CastExpression;
+
+CastExpression returns Expression:
+	OrExpression ({CastExpression.term=current} "as" type=[Type|ID] (^isArray?='['']')?)?
+;
 
 OrExpression returns Expression:
 	AndExpression ({OrExpression.lhs=current} "or" rhs=AndExpression)*
@@ -355,19 +318,20 @@ Modulo returns Expression:
 
 
 Primary returns Expression:
-	'(' Expression ')' |
+	{ExpressionGroup} '(' term=Expression ')' |
 	{NotExpression} "not" term=Primary |
-	{UnaryMinus} '-' term=Primary |
-	ArrayIndexPostfix
+	{UnaryMinus} '-' term=Primary 
+	| ArrayIndexPostfix
 ;
+
 
 ArrayIndexPostfix returns Expression:
 	AtomicExpression ( {ArrayIndex.array=current} '[' index=Expression ']')?
 ;
 
 AtomicExpression returns Expression:
-	ExternExpression | EnumLiteralRef | IntegerLiteral | BooleanLiteral | StringLiteral | DoubleLiteral | PropertyReference | Reference | FunctionCallExpression 
-	// | MessageParameter /* NOT CONVINCED THAT MessageParameter SHOULD BE AN EXPRESSION */
+	ExternExpression | EnumLiteralRef | IntegerLiteral | BooleanLiteral | StringLiteral | DoubleLiteral | PropertyReference | FunctionCallExpression 
+	 | EventReference 
 ;
 
 ExternExpression returns ExternExpression:
@@ -381,7 +345,7 @@ IntegerLiteral returns IntegerLiteral:
 	intValue=INT;
 
 BooleanLiteral returns BooleanLiteral:
-	boolValue= ('true' | 'false')
+	(boolValue?='true') | {BooleanLiteral} 'false'
 	;
 
 StringLiteral returns StringLiteral:
@@ -394,19 +358,14 @@ PropertyReference returns PropertyReference:
 	property=[Variable|ID]
 ;
 
-Reference returns Reference:
-	reference=[ReferencedElmt|ID] "." parameter=ElmtProperty
+EventReference returns EventReference:
+	receiveMsg=[Event|ID] "." parameter=[Parameter|ID]
 ;
 
 FunctionCallExpression returns FunctionCallExpression:
 	function=[Function|ID]'('
 		( parameters+=Expression ( "," parameters+=Expression )* )?
 	')';
-
-
-
-
-// Missing Expressions: ArrayIndex  ;
 
 
 /*****************************************************************************
@@ -423,21 +382,21 @@ Instance returns Instance:
 	'instance' name=ID ':' type=[Thing|ID] ( annotations+=PlatformAnnotation )*;
 
 ConfigPropertyAssign returns ConfigPropertyAssign:
-	'set' instance=InstanceRef '.' property=[Property|ID] ('[' index+=Expression ']')* '=' init=Expression ( annotations+=PlatformAnnotation )*;
+	'set' instance=[Instance|ID] '.' property=[Property|ID] ('[' index+=Expression ']')* '=' init=Expression ( annotations+=PlatformAnnotation )*;
 
 
 AbstractConnector:
 	Connector | ExternalConnector;
 	
 Connector returns Connector:
-	'connector'	(name=ID)? cli=InstanceRef '.' required=[RequiredPort|ID] '=>' srv=InstanceRef '.' provided=[ProvidedPort|ID] ( annotations+=PlatformAnnotation )*;
+	'connector'	(name=ID)? cli=[Instance|ID] '.' required=[RequiredPort|ID] '=>' srv=[Instance|ID] '.' provided=[ProvidedPort|ID] ( annotations+=PlatformAnnotation )*;
 
 ExternalConnector returns ExternalConnector:
-	'connector'	(name=ID)? inst=InstanceRef '.' port=[Port|ID] 'over' protocol=[Protocol|ID] ( annotations+=PlatformAnnotation )*;
-
+	'connector'	(name=ID)? inst=[Instance|ID] '.' port=[Port|ID] 'over' protocol=[Protocol|ID] ( annotations+=PlatformAnnotation )*;
+/* 
 InstanceRef returns InstanceRef:
 	instance=[Instance|ID];
-
+*/
 
 /*****************************************************************************
  *       TERMINALS                                                           *
@@ -452,6 +411,10 @@ terminal FLOAT returns ecore::EDouble :
 ('0'..'9')+ '.' ('0'..'9')* (('e'|'E') ('+' | '-')? ('0'..'9')+)?
 | '.' ('0'..'9')+ (('e'|'E') ('+' | '-')? ('0'..'9')+)?
 | ('0'..'9')+ ('e'|'E') ('+' | '-')? ('0'..'9')+;
+
+terminal ANNOTATION_ID:
+	"@" ('a'..'z'|'A'..'Z'|'_') ('a'..'z'|'A'..'Z'|'_'|'0'..'9')*;
+
 
 terminal STRING_EXT:  
 			"'" ( '\\' . /* 'b'|'t'|'n'|'f'|'r'|'u'|'"'|"'"|'\\' */ | !('\\'|"'") )* "'";

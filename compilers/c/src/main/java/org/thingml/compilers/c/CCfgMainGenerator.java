@@ -19,29 +19,49 @@ package org.thingml.compilers.c;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.util.AbstractMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.emf.common.util.EList;
-import org.sintef.thingml.*;
-import org.sintef.thingml.Enumeration;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.*;
 import org.thingml.compilers.Context;
 import org.thingml.compilers.DebugProfile;
 import org.thingml.compilers.NetworkLibraryGenerator;
 import org.thingml.compilers.configuration.CfgMainGenerator;
-import org.thingml.compilers.c.cepHelper.CCepHelper;
-import org.thingml.compilers.spi.ExternalThingPlugin;
-
-import java.util.*;
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.helpers.CompositeStateHelper;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.helpers.StateContainerHelper;
+import org.thingml.xtext.helpers.StateHelper;
+import org.thingml.xtext.helpers.ThingHelper;
+import org.thingml.xtext.helpers.ThingMLElementHelper;
+import org.thingml.xtext.thingML.CompositeState;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.Connector;
+import org.thingml.xtext.thingML.Enumeration;
+import org.thingml.xtext.thingML.EnumerationLiteral;
+import org.thingml.xtext.thingML.Expression;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Instance;
+import org.thingml.xtext.thingML.InternalPort;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Property;
+import org.thingml.xtext.thingML.Session;
+import org.thingml.xtext.thingML.StateContainer;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.thingML.ThingMLModel;
+import org.thingml.xtext.thingML.Type;
 
 /**
  * Created by ffl on 29.05.15.
  */
 public class CCfgMainGenerator extends CfgMainGenerator {
-
-    public boolean isGeneratingCpp() {
-        return false;
-    }
 
     public String getCppNameScope() {
         return "";
@@ -83,18 +103,12 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         generateCForConfiguration(cfg, builder, headerbuilder, ctx);
 
         generateDynamicConnectors(cfg, builder, headerbuilder, ctx);
-
+        
+    
         ctemplate = ctemplate.replace("/*CONFIGURATION*/", builder.toString());
-
-        if (isGeneratingCpp()) {
-            // GENERATE HEADER FOR MAIN
-            String cheadertemplate = ctx.getCfgMainHeaderTemplate();
-            //generateCppHeaderExternalMessageEnqueue(cfg, headerbuilder, ctx);            
-            //generateCppHeaderForConfiguration(cfg, headerbuilder, ctx);
-            cheadertemplate = cheadertemplate.replace("/*HEADER_CONFIGURATION*/", headerbuilder.toString());
-            ctx.getBuilder(cfg.getName() + ".h").append(cheadertemplate);
-        }
-
+    
+        generateheaderbuilder(cfg,headerbuilder, ctx);
+        
         StringBuilder initb = new StringBuilder();
         generateInitializationCode(cfg, initb, ctx);
 
@@ -111,6 +125,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
 
     }
+    
+    protected void generateheaderbuilder(Configuration cfg, StringBuilder headerbuilder, CCompilerContext ctx){
+	}
 
     protected void generateCleanupOnTerminateInstance(Instance inst, Configuration cfg,
                                                       StringBuilder builder, CCompilerContext ctx){}
@@ -165,6 +182,55 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         ctx.getBuilder(ctx.getPrefix() + "runtime.c").append(rtemplate);
     }
 
+    protected void generateheaderdeclaration(Configuration cfg, StringBuilder builder, CCompilerContext ctx){
+    	builder.append("//Declaration of instance variables\n");
+
+        for (Instance inst : ConfigurationHelper.allInstances(cfg)) {
+            
+        builder.append("//Instance " + inst.getName() + "\n");
+            
+        builder.append("// Variables for the properties of the instance\n");
+
+            builder.append(ctx.getInstanceVarDecl(inst) + "\n");
+
+            if (AnnotatedElementHelper.hasAnnotation(cfg, "c_dyn_connectors")) {
+                for (Port p : ThingMLHelpers.allPorts(inst.getType())) {
+                    if (!p.getReceives().isEmpty()) {
+                builder.append("struct Msg_Handler " + inst.getName()
+                        + "_" + p.getName() + "_handlers;\n");
+                builder.append("uint16_t " + inst.getName()
+                        + "_" + p.getName() + "_msgs[" + p.getReceives().size() + "];\n");
+                builder.append("void * " + inst.getName()
+                        + "_" + p.getName() + "_handlers_tab[" + p.getReceives().size() + "];\n\n");
+
+            }
+        }
+        }
+        DebugProfile debugProfile = ctx.getCompiler().getDebugProfiles().get(inst.getType());
+        //if(!(debugProfile==null) && debugProfile.g) {}
+        //if(ctx.containsDebug(cfg, inst.getType())) {
+        boolean debugInst = false;
+            for (Instance i : debugProfile.getDebugInstances()) {
+                if (i.getName().equals(inst.getName())) {
+                debugInst = true;
+                break;
+            }
+        }
+            if (debugProfile.isActive()) {
+            //if(ctx.isToBeDebugged(ctx.getCurrentConfiguration(), inst)) {
+                if (debugInst) {
+                builder.append("char * " + ctx.getInstanceVarName(inst) + "_name = \"" + inst.getName() + "\";\n");
+            }
+        }
+            
+
+            builder.append("// Variables for the sessions of the instance\n");
+            CompositeState sm = ThingMLHelpers.allStateMachines(inst.getType()).get(0);
+            generateSessionInstanceDeclaration(cfg, ctx, builder, inst, sm, "1");
+    }
+
+        builder.append("\n");
+    }
 
     protected void generateCForConfiguration(Configuration cfg, StringBuilder builder, StringBuilder headerbuilder, CCompilerContext ctx) {
 
@@ -201,10 +267,10 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
         for (Instance inst : ConfigurationHelper.allInstances(cfg)) {
             for (Property a : ConfigurationHelper.allArrays(cfg, inst)) {
-                builder.append(ctx.getCType(a.getType()) + " ");
+                builder.append(ctx.getCType(a.getTypeRef().getType()) + " ");
                 builder.append("array_" + inst.getName() + "_" + ctx.getCVarName(a));
                 builder.append("[");
-                ctx.generateFixedAtInitValue(cfg, inst, a.getCardinality(), builder);
+                ctx.generateFixedAtInitValue(cfg, inst, a.getTypeRef().getCardinality(), builder);
                 builder.append("];\n");
             }
         }
@@ -232,57 +298,8 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                 }
             }
         }
-        
-        if (!isGeneratingCpp()) { // Declarations are made in header file for C++ - sdalgard
 
-            builder.append("//Declaration of instance variables\n");
-
-            for (Instance inst : ConfigurationHelper.allInstances(cfg)) {
-                
-            builder.append("//Instance " + inst.getName() + "\n");
-                
-            builder.append("// Variables for the properties of the instance\n");
-
-                builder.append(ctx.getInstanceVarDecl(inst) + "\n");
-
-                if (AnnotatedElementHelper.hasAnnotation(cfg, "c_dyn_connectors")) {
-                    for (Port p : ThingMLHelpers.allPorts(inst.getType())) {
-                        if (!p.getReceives().isEmpty()) {
-                    builder.append("struct Msg_Handler " + inst.getName()
-                            + "_" + p.getName() + "_handlers;\n");
-                    builder.append("uint16_t " + inst.getName()
-                            + "_" + p.getName() + "_msgs[" + p.getReceives().size() + "];\n");
-                    builder.append("void * " + inst.getName()
-                            + "_" + p.getName() + "_handlers_tab[" + p.getReceives().size() + "];\n\n");
-
-                }
-            }
-            }
-            DebugProfile debugProfile = ctx.getCompiler().getDebugProfiles().get(inst.getType());
-            //if(!(debugProfile==null) && debugProfile.g) {}
-            //if(ctx.containsDebug(cfg, inst.getType())) {
-            boolean debugInst = false;
-                for (Instance i : debugProfile.getDebugInstances()) {
-                    if (i.getName().equals(inst.getName())) {
-                    debugInst = true;
-                    break;
-                }
-            }
-                if (debugProfile.isActive()) {
-                //if(ctx.isToBeDebugged(ctx.getCurrentConfiguration(), inst)) {
-                    if (debugInst) {
-                    builder.append("char * " + ctx.getInstanceVarName(inst) + "_name = \"" + inst.getName() + "\";\n");
-                }
-            }
-                
-
-                builder.append("// Variables for the sessions of the instance\n");
-                StateMachine sm = ThingMLHelpers.allStateMachines(inst.getType()).get(0);
-                generateSessionInstanceDeclaration(cfg, ctx, builder, inst, sm, "1");
-        }
-
-            builder.append("\n");
-        }
+        generateheaderdeclaration(cfg, builder, ctx);
 
         // TODO Jakob, maybe the compiler can figure this out itself, but then all the network plugins would need fixing
         builder.append(ctx.getNetworkPluginInstance());
@@ -331,12 +348,18 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
     }
 
-    protected void generateIncludes(Configuration cfg, StringBuilder builder, CCompilerContext ctx) {
+    // TODO Jakob made this public, should it not be used externally?
+    public String generateThingIncludes(Configuration cfg, CCompilerContext ctx) {
+        StringBuilder builder = new StringBuilder();
         ThingMLModel model = ThingMLHelpers.findContainingModel(cfg);
         for (Thing t : ConfigurationHelper.allThings(cfg)) {
-
             builder.append("#include \"" + t.getName() + ".h\"\n");
         }
+        return builder.toString();
+    }
+
+    protected void generateIncludes(Configuration cfg, StringBuilder builder, CCompilerContext ctx) {
+        builder.append(this.generateThingIncludes(cfg, ctx));
         builder.append(ctx.getIncludeCode());
     }
 
@@ -408,7 +431,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                     for (Parameter pt : m.getParameters()) {
                         builder.append("\n// parameter " + pt.getName() + "\n");
-                        ctx.bytesToSerialize(pt.getType(), builder, pt.getName(), pt);
+                        ctx.bytesToSerialize(pt.getTypeRef().getType(), builder, pt.getName(), pt);
                     }
                     builder.append("}\n");
 
@@ -444,9 +467,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
         for (Parameter pt : m.getParameters()) {
             builder.append("\n// parameter " + pt.getName() + "\n");
-            int i = ctx.getCByteSize(pt.getType(), 0);
+            int i = ctx.getCByteSize(pt.getTypeRef().getType(), 0);
             String v = pt.getName();
-            if (ctx.isPointer(pt.getType())) {
+            if (ctx.isPointer(pt.getTypeRef().getType())) {
                 // This should not happen and should be checked before.
                 throw new Error("ERROR: Attempting to deserialize a pointer (for message " + m.getName() + "). This is not allowed.");
             } else {
@@ -454,8 +477,8 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                 if (!ignoreList.contains(pt.getName())) {
 
                     builder.append("union u_" + v + "_t {\n");
-                    builder.append(ctx.getCType(pt.getType()) + " p;\n");
-                    builder.append("byte bytebuffer[" + ctx.getCByteSize(pt.getType(), 0) + "];\n");
+                    builder.append(ctx.getCType(pt.getTypeRef().getType()) + " p;\n");
+                    builder.append("byte bytebuffer[" + ctx.getCByteSize(pt.getTypeRef().getType(), 0) + "];\n");
                     builder.append("} u_" + v + ";\n");
                     builder.append("u_" + v + ".p = " + v + ";\n");
 
@@ -597,7 +620,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
         for (ExternalConnector eco : ConfigurationHelper.getExternalConnectors(cfg)) {
             //if (AnnotatedElementHelper.hasAnnotation(eco, "c_external_send")) {
-            Thing t = eco.getInst().getInstance().getType();
+            Thing t = eco.getInst().getType();
             Port p = eco.getPort();
 
 
@@ -606,8 +629,8 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                 // Thing Port Message Forwarder list filling
                 if (tpm.containsKey(m)) {
                     tpeco = tpm.get(m);
-                    if (tpeco.containsKey(eco.getInst().getInstance().getType())) {
-                        peco = tpeco.get(eco.getInst().getInstance().getType());
+                    if (tpeco.containsKey(eco.getInst().getType())) {
+                        peco = tpeco.get(eco.getInst().getType());
                         if (peco.containsKey(eco.getPort())) {
                             ecoSet = peco.get(eco.getPort());
                             ecoSet.add(eco);
@@ -658,7 +681,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                         for (ExternalConnector eco : ecoSet) {
                             builder.append("if(_instance->id_" + p.getName() + " ==");
-                            builder.append(" " + ctx.getInstanceVarName(eco.getInst().getInstance()));
+                            builder.append(" " + ctx.getInstanceVarName(eco.getInst()));
                             builder.append(".id_" + p.getName() + ") {\n");
                             builder.append("forward_" + eco.getName() + "_" + ctx.getSenderName(t, p, m));
                             builder.append("(_instance");
@@ -751,17 +774,17 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                 builder.append(" {\n");
 
 
-                if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                     builder.append("struct executor {\nstatic ");
                 }
 
                 builder.append("void executor_dispatch_" + m.getName());
                 builder.append("(struct Msg_Handler ** head, struct Msg_Handler ** tail");
 
-                if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                     for (Parameter p : m.getParameters()) {
                         builder.append(", ");
-                        builder.append(ctx.getCType(p.getType()));
+                        builder.append(ctx.getCType(p.getTypeRef().getType()));
                         builder.append(" ");
                         builder.append("param_" + p.getName());
                     }
@@ -775,9 +798,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                 for (Parameter p : m.getParameters()) {
                     builder.append(", ");
-                    builder.append(ctx.getCType(p.getType()));
+                    builder.append(ctx.getCType(p.getTypeRef().getType()));
 
-                    if (ctx.isPointer(p.getType()) || p.isIsArray()) {
+                    if (ctx.isPointer(p.getTypeRef().getType()) || p.getTypeRef().isIsArray()) {
                          builder.append(" *");
                     }
 
@@ -795,9 +818,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                 for (Parameter p : m.getParameters()) {
                     builder.append(", ");
-                    builder.append(ctx.getCType(p.getType()));
+                    builder.append(ctx.getCType(p.getTypeRef().getType()));
 
-                    if (ctx.isPointer(p.getType()) || p.isIsArray()) {
+                    if (ctx.isPointer(p.getTypeRef().getType()) || p.getTypeRef().isIsArray()) {
                          builder.append(" *");
                     }
                 }
@@ -831,7 +854,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                 builder.append("}\n");
 
-                if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                     builder.append("};\n");
                 }
 
@@ -842,7 +865,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                         builder.append(".id_" + s.getValue().getName() + ") {\n");
 
 
-                        if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                        if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                             builder.append("executor::");
                         }
                         builder.append("executor_dispatch_" + m.getName());
@@ -854,7 +877,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                         builder.append(s.getValue().getName() + "_receiver_list_tail");
 
 
-                        if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                        if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                             for (Parameter p : m.getParameters()) {
                                 builder.append(", param_");
                                 builder.append(p.getName());
@@ -879,7 +902,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                         builder.append("if (sender ==");
                         builder.append(" " + portName + "_instance.listener_id) {\n");
 
-                        if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                        if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                             builder.append("executor::");
                         }
                         builder.append("executor_dispatch_" + m.getName());
@@ -889,7 +912,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                         builder.append(portName + "_instance.");
                         builder.append(eco.getPort().getName() + "_receiver_list_tail");
 
-                        if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+                        if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                             for (Parameter p : m.getParameters()) {
                                 builder.append(", param_");
                                 builder.append(p.getName());
@@ -945,7 +968,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         if (ThingMLHelpers.allStateMachines(receiver.getKey().getType()).size() == 0)
             return; // there is no state machine
 
-        StateMachine sm = ThingMLHelpers.allStateMachines(receiver.getKey().getType()).get(0);
+        CompositeState sm = ThingMLHelpers.allStateMachines(receiver.getKey().getType()).get(0);
         if (StateHelper.canHandleIncludingSessions(sm, receiver.getValue(), m)) {
             builder.append(ctx.getHandlerName(receiver.getKey().getType(), receiver.getValue(), m));
             ctx.appendActualParametersForDispatcher(receiver.getKey().getType(), builder, m, "&" + ctx.getInstanceVarName(receiver.getKey()));
@@ -971,32 +994,32 @@ public class CCfgMainGenerator extends CfgMainGenerator {
             for (Connector co : ConfigurationHelper.allConnectors(cfg)) {
                 if (co.getProvided().getSends().contains(m)) {
                     if (AnnotatedElementHelper.isDefined(co.getProvided(), "sync_send", "true")) {
-                        syncSenderList.add(new HashMap.SimpleEntry<Instance, Port>(co.getSrv().getInstance(), co.getProvided()));
+                        syncSenderList.add(new HashMap.SimpleEntry<Instance, Port>(co.getSrv(), co.getProvided()));
                     }
-                    Sender = new HashMap.SimpleEntry<Instance, Port>(co.getSrv().getInstance(), co.getProvided());
+                    Sender = new HashMap.SimpleEntry<Instance, Port>(co.getSrv(), co.getProvided());
                     if (SenderList.containsKey(Sender)) {
                         ReceiverList = SenderList.get(Sender);
                     } else {
                         ReceiverList = new HashSet<Map.Entry<Instance, Port>>();
                         SenderList.put(Sender, ReceiverList);
                     }
-                    Receiver = new HashMap.SimpleEntry<Instance, Port>(co.getCli().getInstance(), co.getRequired());
+                    Receiver = new HashMap.SimpleEntry<Instance, Port>(co.getCli(), co.getRequired());
                     if (!ReceiverList.contains(Receiver)) {
                         ReceiverList.add(Receiver);
                     }
                 }
                 if (co.getRequired().getSends().contains(m)) {
                     if (AnnotatedElementHelper.isDefined(co.getRequired(), "sync_send", "true")) {
-                        syncSenderList.add(new HashMap.SimpleEntry<Instance, Port>(co.getCli().getInstance(), co.getRequired()));
+                        syncSenderList.add(new HashMap.SimpleEntry<Instance, Port>(co.getCli(), co.getRequired()));
                     }
-                    Sender = new HashMap.SimpleEntry<Instance, Port>(co.getCli().getInstance(), co.getRequired());
+                    Sender = new HashMap.SimpleEntry<Instance, Port>(co.getCli(), co.getRequired());
                     if (SenderList.containsKey(Sender)) {
                         ReceiverList = SenderList.get(Sender);
                     } else {
                         ReceiverList = new HashSet<Map.Entry<Instance, Port>>();
                         SenderList.put(Sender, ReceiverList);
                     }
-                    Receiver = new HashMap.SimpleEntry<Instance, Port>(co.getSrv().getInstance(), co.getProvided());
+                    Receiver = new HashMap.SimpleEntry<Instance, Port>(co.getSrv(), co.getProvided());
                     if (!ReceiverList.contains(Receiver)) {
                         ReceiverList.add(Receiver);
                     }
@@ -1064,10 +1087,10 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                     builder.append("if (sender ==");
                     builder.append(" " + portName + "_instance.listener_id) {\n");
 
-                    StateMachine sm = ThingMLHelpers.allStateMachines(eco.getInst().getInstance().getType()).get(0);
+                    CompositeState sm = ThingMLHelpers.allStateMachines(eco.getInst().getType()).get(0);
                     if (StateHelper.canHandle(sm, eco.getPort(), m)) {
-                        builder.append(ctx.getHandlerName(eco.getInst().getInstance().getType(), eco.getPort(), m));
-                        ctx.appendActualParametersForDispatcher(eco.getInst().getInstance().getType(), builder, m, "&" + ctx.getInstanceVarName(eco.getInst().getInstance()));
+                        builder.append(ctx.getHandlerName(eco.getInst().getType(), eco.getPort(), m));
+                        ctx.appendActualParametersForDispatcher(eco.getInst().getType(), builder, m, "&" + ctx.getInstanceVarName(eco.getInst()));
                         builder.append(";\n");
                         //builder.append("//TODEBUG " + eco.getInst().getInstance().getName() + "\n");
                     }
@@ -1168,7 +1191,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                 for (Message m : p.getSends()) {
                     for (Thing t2 : ConfigurationHelper.allThings(cfg)) {
                         for (Port p2 : ThingMLHelpers.allPorts(t2)) {
-                            if (AnnotatedElementHelper.isDefined(p2, "sync_send", "true")) continue;
+                            //if (AnnotatedElementHelper.isDefined(p2, "sync_send", "true")) continue; 
                             if (p2.getReceives().contains(m)) {
                                 messageSent.add(m);
                             }
@@ -1213,11 +1236,11 @@ public class CCfgMainGenerator extends CfgMainGenerator {
             builder.append("uint8_t mbufi_" + m.getName() + " = 2;\n");
 
             for (Parameter pt : m.getParameters()) {
-                if(pt.isIsArray()) {
+                if(pt.getTypeRef().isIsArray()) {
                     StringBuilder cardBuilder = new StringBuilder();
-                    ctx.getCompiler().getThingActionCompiler().generate(pt.getCardinality(), cardBuilder, ctx);
+                    ctx.getCompiler().getThingActionCompiler().generate(pt.getTypeRef().getCardinality(), cardBuilder, ctx);
                     String v = m.getName() + "_" + pt.getName();
-                    Type t = pt.getType();
+                    Type t = pt.getTypeRef().getType();
                     builder.append("union u_" + v + "_t {\n");
                     builder.append("    " + ctx.getCType(t) + " p[" + cardBuilder + "];\n");
                     builder.append("    byte bytebuffer[" + ctx.getCByteSize(t, 0) + "* (" + cardBuilder + ")];\n");
@@ -1225,7 +1248,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                     builder.append("uint8_t u_" + v + "_index = 0;\n");
                     builder.append("while (u_" + v + "_index < (" + ctx.getCByteSize(t, 0) + "* (" + cardBuilder + "))) {\n");
-                    for (int i = 0; i < ctx.getCByteSize(pt.getType(), 0); i++) {
+                    for (int i = 0; i < ctx.getCByteSize(pt.getTypeRef().getType(), 0); i++) {
 
                         builder.append("u_" + m.getName() + "_" + pt.getName() + ".bytebuffer[u_" + v + "_index - " + i + "]");
                         builder.append(" = mbuf[mbufi_" + m.getName() + " + " + cardBuilder + " - 1 + " + i + " - u_" + v + "_index];\n");
@@ -1234,22 +1257,22 @@ public class CCfgMainGenerator extends CfgMainGenerator {
                     builder.append("    u_" + v + "_index++;\n");
                     builder.append("}\n");
                     
-                    builder.append("mbufi_" + m.getName() + " += " + ctx.getCByteSize(pt.getType(), 0) + " * (" + cardBuilder + ");\n");
+                    builder.append("mbufi_" + m.getName() + " += " + ctx.getCByteSize(pt.getTypeRef().getType(), 0) + " * (" + cardBuilder + ");\n");
                 } else {
                     builder.append("union u_" + m.getName() + "_" + pt.getName() + "_t {\n");
-                    builder.append(ctx.getCType(pt.getType()) + " p;\n");
-                    builder.append("byte bytebuffer[" + ctx.getCByteSize(pt.getType(), 0) + "];\n");
+                    builder.append(ctx.getCType(pt.getTypeRef().getType()) + " p;\n");
+                    builder.append("byte bytebuffer[" + ctx.getCByteSize(pt.getTypeRef().getType(), 0) + "];\n");
                     builder.append("} u_" + m.getName() + "_" + pt.getName() + ";\n");
 
 
-                    for (int i = 0; i < ctx.getCByteSize(pt.getType(), 0); i++) {
+                    for (int i = 0; i < ctx.getCByteSize(pt.getTypeRef().getType(), 0); i++) {
 
-                        builder.append("u_" + m.getName() + "_" + pt.getName() + ".bytebuffer[" + (ctx.getCByteSize(pt.getType(), 0) - i - 1) + "]");
+                        builder.append("u_" + m.getName() + "_" + pt.getName() + ".bytebuffer[" + (ctx.getCByteSize(pt.getTypeRef().getType(), 0) - i - 1) + "]");
                             builder.append(" = mbuf[mbufi_" + m.getName() + " + " + i + "];\n");
 
                     }
 
-                    builder.append("mbufi_" + m.getName() + " += " + ctx.getCByteSize(pt.getType(), 0) + ";\n");
+                    builder.append("mbufi_" + m.getName() + " += " + ctx.getCByteSize(pt.getTypeRef().getType(), 0) + ";\n");
                 }
             }
             // End Horrible deserialization trick
@@ -1262,7 +1285,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
             for (Parameter pt : m.getParameters()) {
                 //builder.append(",\n" + ctx.deserializeFromByte(pt.getType(), "mbuf", idx, ctx) + " /* " + pt.getName() + " */ ");
                 builder.append(",\n u_" + m.getName() + "_" + pt.getName() + ".p /* " + pt.getName() + " */ ");
-                idx = idx + ctx.getCByteSize(pt.getType(), 0);
+                idx = idx + ctx.getCByteSize(pt.getTypeRef().getType(), 0);
             }
 
             builder.append(");\n");
@@ -1285,7 +1308,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         builder.append("// Initialize connectors\n");
 
         for (ExternalConnector eco : ConfigurationHelper.getExternalConnectors(cfg)) {
-            Thing t = eco.getInst().getInstance().getType();
+            Thing t = eco.getInst().getType();
             Port port = eco.getPort();
             for (Message msg : eco.getPort().getSends()) {
                 builder.append("register_external_" + ctx.getSenderName(t, port, msg) + "_listener(");
@@ -1397,7 +1420,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
             if (!eco.getPort().getReceives().isEmpty()) {
             //    && (!co.getRequired().getReceives().isEmpty())) {
             builder.append(cfg.getName() + "_receivers[" + nbConnectorSoFar + "] = &");
-                builder.append(eco.getInst().getInstance().getName()
+                builder.append(eco.getInst().getName()
                     + "_" + eco.getPort().getName() + "_handlers;\n");
             nbConnectorSoFar++;
         }
@@ -1430,14 +1453,14 @@ public class CCfgMainGenerator extends CfgMainGenerator {
     public void generateInitializationSimpleProperties(Instance inst, Configuration cfg, StringBuilder builder, CCompilerContext ctx) {
         // Init simple properties
         for (Map.Entry<Property, Expression> init : ConfigurationHelper.initExpressionsForInstance(cfg, inst)) {
-            if (init.getValue() != null && init.getKey().getCardinality() == null) {
+            if (init.getValue() != null && init.getKey().getTypeRef().getCardinality() == null) {
                 if (ctx.traceLevelIsAbove(cfg, 3)) {
                     builder.append(ctx.getTraceFunctionForString(cfg) + "\"" + inst.getName()
-                            + "." + ctx.getVariableName(init.getKey()) + "<-\");\n");
+                            + "." + ctx.getVariableQName(init.getKey()) + "<-\");\n");
                     builder.append(ctx.getTraceFunctionForString(cfg) + "\"TODO\\n\");\n");
                 }
 
-                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableName(init.getKey()) + " = ");
+                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableQName(init.getKey()) + " = ");
                 //ctx.getCompiler().getThingActionCompiler().generate(init.getValue(), builder, ctx);
                 ctx.generateFixedAtInitValue(cfg, inst, init.getValue(), builder);
                 builder.append(";\n");
@@ -1516,22 +1539,22 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
                 for (Connector co : ConfigurationHelper.allConnectors(cfg)) {
 
-                    if ((co.getSrv().getInstance().getName().equals(inst.getName()))
+                    if ((co.getSrv().getName().equals(inst.getName()))
                             && (co.getProvided().getName().equals(p.getName()))
                             && (!co.getProvided().getSends().isEmpty())
                         && (!co.getRequired().getReceives().isEmpty())) {
                     builder.append(cfg.getName() + "_receivers[" + nbConnectorSoFar + "] = &");
-                    builder.append(co.getCli().getInstance().getName()
+                    builder.append(co.getCli().getName()
                             + "_" + co.getRequired().getName() + "_handlers;\n");
                     nbConnectorSoFar++;
                 }
-                    if ((co.getCli().getInstance().getName().equals(inst.getName()))
+                    if ((co.getCli().getName().equals(inst.getName()))
                             && (co.getRequired().getName().equals(p.getName()))
                             //    && (co.getRequired() == p)
                             && (!co.getRequired().getSends().isEmpty())
                         && (!co.getProvided().getReceives().isEmpty())) {
                     builder.append(cfg.getName() + "_receivers[" + nbConnectorSoFar + "] = &");
-                    builder.append(co.getSrv().getInstance().getName()
+                    builder.append(co.getSrv().getName()
                             + "_" + co.getProvided().getName() + "_handlers;\n");
                     nbConnectorSoFar++;
                 }
@@ -1573,10 +1596,10 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
         // init state variables:
         if (ThingMLHelpers.allStateMachines(inst.getType()).size() > 0) { // There is a state machine
-            for (Region r : CompositeStateHelper.allContainedRegions(ThingMLHelpers.allStateMachines(inst.getType()).get(0))) {
+            for (StateContainer r : CompositeStateHelper.allContainedRegions(ThingMLHelpers.allStateMachines(inst.getType()).get(0))) {
                 builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getStateVarName(r) + " = " + ctx.getStateID(r.getInitial()) + ";\n");
             }
-            for(Session s : RegionHelper.allContainedSessions(ThingMLHelpers.allStateMachines(inst.getType()).get(0))) {
+            for(Session s : CompositeStateHelper.allContainedSessions(ThingMLHelpers.allStateMachines(inst.getType()).get(0))) {
                 builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getStateVarName(s) + " = -1;\n");
         }
         }
@@ -1587,23 +1610,23 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
 
         for (Property p : ThingHelper.allPropertiesInDepth(inst.getType())) {
-            if (p.getCardinality() != null) {//array
-                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableName(p) + " = ");
-                builder.append("array_" + inst.getName() + "_" + ctx.getVariableName(p));
+            if (p.getTypeRef().getCardinality() != null) {//array
+                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableQName(p) + " = ");
+                builder.append("array_" + inst.getName() + "_" + ctx.getVariableQName(p));
                 builder.append(";\n");
-                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableName(p) + "_size = ");
-                ctx.generateFixedAtInitValue(cfg, inst, p.getCardinality(), builder);
+                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableQName(p) + "_size = ");
+                ctx.generateFixedAtInitValue(cfg, inst, p.getTypeRef().getCardinality(), builder);
                 builder.append(";\n");
             }
             if(AnnotatedElementHelper.hasAnnotation(p, "initialize_from_file")) {
-                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableName(p) + " = ");
+                builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableQName(p) + " = ");
                 builder.append(inst.getType().getName() + "_" + p.getName() + ";\n");
             }
         }
         
         //Sessions
         if (ThingMLHelpers.allStateMachines(inst.getType()).size() > 0) { // There is a state machine
-            StateMachine sm = ThingMLHelpers.allStateMachines(inst.getType()).get(0);
+            CompositeState sm = ThingMLHelpers.allStateMachines(inst.getType()).get(0);
             generateSessionInstanceInitialization(cfg, ctx, builder, inst, ctx.getInstanceVarName(inst), "0", sm);
         }
 
@@ -1613,7 +1636,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         for (Property p : expressions.keySet()) {
             for (Map.Entry<Expression, Expression> e : expressions.get(p)) {
                 if (e.getValue() != null && e.getKey() != null) {
-                    builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableName(p));
+                    builder.append(ctx.getInstanceVarName(inst) + "." + ctx.getVariableQName(p));
                     builder.append("[");
                     ctx.getCompiler().getThingActionCompiler().generate(e.getKey(), builder, ctx);
                     builder.append("] = ");
@@ -1625,12 +1648,12 @@ public class CCfgMainGenerator extends CfgMainGenerator {
          }
 
         builder.append("\n");
-
+/*
         // init cep streams variables
         for (Stream s : CCepHelper.getStreamWithBuffer(inst.getType())) {
             builder.append(ctx.getInstanceVarName(inst) + ".cep_" + s.getName() + " = new stream_" + s.getName() + "();\n");
         }
-
+*/
         DebugProfile debugProfile = ctx.getCompiler().getDebugProfiles().get(inst.getType());
         //if(!(debugProfile==null) && debugProfile.g) {}
         //if(ctx.containsDebug(cfg, inst.getType())) {
@@ -1658,7 +1681,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
 
     public void generateInstanceOnEntryCode(Instance inst, StringBuilder builder, CCompilerContext ctx) {
         if (ThingMLHelpers.allStateMachines(inst.getType()).size() > 0) { // there is a state machine
-            StateMachine sm = ThingMLHelpers.allStateMachines(inst.getType()).get(0);
+            CompositeState sm = ThingMLHelpers.allStateMachines(inst.getType()).get(0);
             builder.append(ThingMLElementHelper.qname(sm, "_") + "_OnEntry(" + ctx.getStateID(sm) + ", &" + ctx.getInstanceVarName(inst) + ");\n");
         }
     }
@@ -1671,9 +1694,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         }
         builder.append("//\n");
         for (Connector co : ConfigurationHelper.allConnectors(cfg)) {
-            builder.append("//connector  " + co.getCli().getInstance().getName() + ".");
+            builder.append("//connector  " + co.getCli().getName() + ".");
             builder.append(co.getRequired().getName() + " =>");
-            builder.append(co.getSrv().getInstance().getName() + ".");
+            builder.append(co.getSrv().getName() + ".");
             builder.append(co.getProvided().getName() + "\n");
         }
 
@@ -1704,7 +1727,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
     protected void generateInitializationCode(Configuration cfg, StringBuilder builder, CCompilerContext ctx) {
 
         //Initialize stdout if needed (for arduino)
-        if (ctx.getCompiler().getID().compareTo("arduino") == 0) {
+    	if(ctx.getCompiler().getID().compareTo("arduino") == 0 || ctx.getCompiler().getID().compareTo("arduinomf") == 0) {
                 int baudrate = 9600;
                 if(AnnotatedElementHelper.hasAnnotation(ctx.getCurrentConfiguration(), "arduino_stdout_baudrate")){
                     Integer intb = Integer.parseInt(AnnotatedElementHelper.annotation(ctx.getCurrentConfiguration(), "arduino_stdout_baudrate").iterator().next());
@@ -1730,7 +1753,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         builder.append(ctx.getPollCode());
         builder.append("// End Network Listener\n\n");
 
-        if (ctx.getCompiler().getID().compareTo("arduino") != 0) { //FIXME Nicolas This code is awfull
+        if(ctx.getCompiler().getID().compareTo("arduino") != 0 || ctx.getCompiler().getID().compareTo("arduinomf") != 0) { //FIXME Nicolas This code is awfull
             //New Empty Event Handler
             builder.append("int emptyEventConsumed = 1;\n");
             builder.append("while (emptyEventConsumed != 0) {\n");
@@ -1741,9 +1764,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         for (Instance i : ConfigurationHelper.allInstances(cfg)) {
 
             if (ThingMLHelpers.allStateMachines(i.getType()).size() > 0) { // There has to be only 1
-                StateMachine sm = ThingMLHelpers.allStateMachines(i.getType()).get(0);
+                CompositeState sm = ThingMLHelpers.allStateMachines(i.getType()).get(0);
                 if (StateHelper.hasEmptyHandlersIncludingSessions(sm)) {
-                    if (ctx.getCompiler().getID().compareTo("arduino") != 0) {
+                	if(ctx.getCompiler().getID().compareTo("arduino") != 0 || ctx.getCompiler().getID().compareTo("arduinomf") != 0) {
                     builder.append("emptyEventConsumed += ");
                     }
                     builder.append(ctx.getEmptyHandlerName(i.getType()) + "(&" + ctx.getInstanceVarName(i) + ");\n");
@@ -1751,7 +1774,7 @@ public class CCfgMainGenerator extends CfgMainGenerator {
             }
         }
 
-        if (ctx.getCompiler().getID().compareTo("arduino") != 0) {
+        if(ctx.getCompiler().getID().compareTo("arduino") != 0 || ctx.getCompiler().getID().compareTo("arduinomf") != 0) {
             builder.append("}\n");
         }
         
@@ -1839,9 +1862,9 @@ public class CCfgMainGenerator extends CfgMainGenerator {
         }
     }
 
-    private void generateSessionInstanceDeclaration(Configuration cfg, CCompilerContext ctx, StringBuilder builder, Instance i, CompositeState cs, String curMaxInstances) {
-        
-        for(Session s : CompositeStateHelper.allFirstLevelSessions(cs)) {
+    //TODO: Check that it still works after migration
+    private void generateSessionInstanceDeclaration(Configuration cfg, CCompilerContext ctx, StringBuilder builder, Instance i, CompositeState cs, String curMaxInstances) {        
+        for(Session s : CompositeStateHelper.allContainedSessions(cs)) {
             StringBuilder maxInstances = new StringBuilder();
             maxInstances.append(curMaxInstances + " * (");
             ctx.generateFixedAtInitValue(cfg, i, s.getMaxInstances(), maxInstances);
@@ -1850,47 +1873,52 @@ public class CCfgMainGenerator extends CfgMainGenerator {
             builder.append("//Instance: " + i.getName() + ", Session: " + s.getName() + "\n");
             builder.append("struct " + ctx.getInstanceStructName(i.getType()) + " sessions_" + i.getName() + "_" + s.getName() + "[" + maxInstances + "];\n");
             for (Property a : ConfigurationHelper.allArrays(cfg, i)) {
-                builder.append(ctx.getCType(a.getType()) + " ");
+                builder.append(ctx.getCType(a.getTypeRef().getType()) + " ");
                 builder.append("array_" + i.getName() + "_" + s.getName() + "_" + ctx.getCVarName(a));
                 builder.append("[" + maxInstances + "][");
-                ctx.generateFixedAtInitValue(cfg, i, a.getCardinality(), builder);
+                ctx.generateFixedAtInitValue(cfg, i, a.getTypeRef().getCardinality(), builder);
                 builder.append("];\n");
-            }
-            
-            builder.append("//Subsessions\n");
-            generateSessionInstanceDeclaration(cfg, ctx, builder, i, s, maxInstances.toString());
+            }            
         }
         
     }
 
-    private void generateSessionInstanceInitialization(Configuration cfg, CCompilerContext ctx, StringBuilder builder, Instance i, String inst_var, String index, CompositeState cs) {
-        
-        for(Session s : CompositeStateHelper.allFirstLevelSessions(cs)) {
-            StringBuilder maxInstances = new StringBuilder();
-            ctx.generateFixedAtInitValue(cfg, i, s.getMaxInstances(), maxInstances);
-            builder.append("//Instance: " + i.getName() + ", Session: " + s.getName() + "\n");
-            builder.append(inst_var + ".nb_max_sessions_" + s.getName() + " = " + maxInstances + ";\n");
-            builder.append(inst_var + ".sessions_" + s.getName() + 
-                    " = &sessions_" + i.getName() + "_" + s.getName() + "[" + index + "];\n");
-            
-            builder.append("uint16_t " + i.getName() + "_" + s.getName() + "_index = 0;\n");
-            builder.append("while (" + i.getName() + "_" + s.getName() + "_index < (" + maxInstances + ")) {\n");
-            builder.append("sessions_" + i.getName() + "_" + s.getName() + "[" + index + " + " + i.getName() + "_" + s.getName() + "_index].active = false;\n");
-            
-            for (Property a : ConfigurationHelper.allArrays(cfg, i)) {
-                //builder.append(ctx.getCType(a.getType()) + " ");
-                builder.append("sessions_" + i.getName() + "_" + s.getName() + "[" + index + " + " + i.getName() + "_" + s.getName() + "_index]." + ctx.getCVarName(a) + " = &(array_" + i.getName() + "_" + s.getName() + "_" + ctx.getCVarName(a));
-                builder.append("[" + index + " + " + i.getName() + "_" + s.getName() + "_index][0]);\n");
-            }
-            
-            builder.append("//Subsessions\n");
-            String sessionInstanceVar = "sessions_" + i.getName() + "_" + s.getName() + "[" + index + " + " + i.getName() + "_" + s.getName() + "_index]";
-            String sessionIndex = index + " + " + i.getName() + "_" + s.getName() + "_index";
-            generateSessionInstanceInitialization(cfg, ctx, builder, i, sessionInstanceVar, sessionIndex, s);
-            builder.append("\n");
-            builder.append(i.getName() + "_" + s.getName() + "_index++;\n");
-            builder.append("}\n");
+    //TODO: Check that it still works after migration    
+    private void generateSessionInstanceInitialization(Configuration cfg, CCompilerContext ctx, StringBuilder builder, Instance i, String inst_var, String index, CompositeState cs) {        
+        for(Session s : cs.getSession()) {
+            generateSessionInstanceInitialization(cfg, ctx, builder, i, inst_var, index, s);
         }
         
     }
+
+    //TODO: Check that it still works after migration
+    private void generateSessionInstanceInitialization(Configuration cfg, CCompilerContext ctx, StringBuilder builder, Instance i, String inst_var, String index, Session s) {
+        StringBuilder maxInstances = new StringBuilder();
+        ctx.generateFixedAtInitValue(cfg, i, s.getMaxInstances(), maxInstances);
+        builder.append("//Instance: " + i.getName() + ", Session: " + s.getName() + "\n");
+        builder.append(inst_var + ".nb_max_sessions_" + s.getName() + " = " + maxInstances + ";\n");
+        builder.append(inst_var + ".sessions_" + s.getName() + 
+                " = &sessions_" + i.getName() + "_" + s.getName() + "[" + index + "];\n");
+        
+        builder.append("uint16_t " + i.getName() + "_" + s.getName() + "_index = 0;\n");
+        builder.append("while (" + i.getName() + "_" + s.getName() + "_index < (" + maxInstances + ")) {\n");
+        builder.append("sessions_" + i.getName() + "_" + s.getName() + "[" + index + " + " + i.getName() + "_" + s.getName() + "_index].active = false;\n");
+        
+        for (Property a : ConfigurationHelper.allArrays(cfg, i)) {
+            //builder.append(ctx.getCType(a.getType()) + " ");
+            builder.append("sessions_" + i.getName() + "_" + s.getName() + "[" + index + " + " + i.getName() + "_" + s.getName() + "_index]." + ctx.getCVarName(a) + " = &(array_" + i.getName() + "_" + s.getName() + "_" + ctx.getCVarName(a));
+            builder.append("[" + index + " + " + i.getName() + "_" + s.getName() + "_index][0]);\n");
+        }
+        
+        builder.append("//Subsessions\n");
+        for(Session sub : StateContainerHelper.allContainedSessions(s)) {
+        	String sessionInstanceVar = "sessions_" + i.getName() + "_" + sub.getName() + "[" + index + " + " + i.getName() + "_" + sub.getName() + "_index]";
+        	String sessionIndex = index + " + " + i.getName() + "_" + sub.getName() + "_index";
+        	generateSessionInstanceInitialization(cfg, ctx, builder, i, sessionInstanceVar, sessionIndex, sub);
+        	builder.append("\n");
+        	builder.append(i.getName() + "_" + sub.getName() + "_index++;\n");
+        }
+        builder.append("}\n");    
+    }
+
 }

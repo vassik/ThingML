@@ -26,41 +26,30 @@
  */
 package org.thingml.networkplugins.js;
 
-import com.eclipsesource.json.JsonObject;
-import org.apache.commons.io.IOUtils;
-import org.sintef.thingml.Message;
-import org.sintef.thingml.Parameter;
-import org.sintef.thingml.PrimitiveType;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.thingml.compilers.spi.SerializationPlugin;
-
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import org.thingml.compilers.spi.SerializationPlugin;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
+
 public class JSJSONSerializerPlugin extends SerializationPlugin {
 
-    @Override
+    public JSJSONSerializerPlugin() {
+		super();
+	}
+
+	@Override
     public SerializationPlugin clone() {
         return new JSJSONSerializerPlugin();
     }
 
     @Override
-    public String generateSerialization(StringBuilder builder, String bufferName, Message m) {
+    public String generateSerialization(StringBuilder builder, String bufferName, Message m, ExternalConnector eco) {
         System.out.println("generateSerialization " + bufferName + " : " + m.getName());
-        int size = 2; //code encoded by a 2 bytes
-        for (Parameter p : m.getParameters()) {
-            if(!AnnotatedElementHelper.isDefined(m, "do_not_forward", p.getName())) {
-                if (p.getType() instanceof PrimitiveType) {
-                    size = size + ((PrimitiveType) p.getType()).getByteSize();
-                } else {
-                    throw new UnsupportedOperationException("Cannot serialized non primitive type " + p.getType().getName());
-                }
-            }
-        }
         //Serialize message into binary
         builder.append(bufferName + ".prototype." + m.getName() + "ToFormat = function(");
         for(Parameter p : m.getParameters()) {
@@ -85,7 +74,7 @@ public class JSJSONSerializerPlugin extends SerializationPlugin {
     }
 
     @Override
-    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender) {
+    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender, ExternalConnector eco) {
         builder.append("function " + bufferName + "(){\n");
         builder.append(bufferName + ".prototype.parse = function(json) {\n");
         builder.append("const msg = {};\n");

@@ -21,16 +21,17 @@
  */
 package org.thingml.networkplugins.c.posix;
 
-import org.sintef.thingml.Message;
-import org.sintef.thingml.Parameter;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.thingml.compilers.Context;
-import org.thingml.compilers.c.CCompilerContext;
-import org.thingml.compilers.spi.SerializationPlugin;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import org.thingml.compilers.Context;
+import org.thingml.compilers.c.CCompilerContext;
+import org.thingml.compilers.spi.SerializationPlugin;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
 
 /**
  *
@@ -55,7 +56,7 @@ public class PosixTextDigitSerializerPlugin extends SerializationPlugin {
     }
 
     @Override
-    public String generateSerialization(StringBuilder builder, String bufferName, Message m) {
+    public String generateSerialization(StringBuilder builder, String bufferName, Message m, ExternalConnector eco) {
         int size = 0;
         StringBuilder b = new StringBuilder();
 
@@ -71,16 +72,16 @@ public class PosixTextDigitSerializerPlugin extends SerializationPlugin {
 
         for (Parameter pt : m.getParameters()) {
             b.append("\n// parameter " + pt.getName() + "\n");
-            int i = cctx.getCByteSize(pt.getType(), 0);
+            int i = cctx.getCByteSize(pt.getTypeRef().getType(), 0);
             String v = pt.getName();
-            if (cctx.isPointer(pt.getType())) {
+            if (cctx.isPointer(pt.getTypeRef().getType())) {
                 // This should not happen and should be checked before.
                 throw new Error("ERROR: Attempting to deserialize a pointer (for message " + m.getName() + "). This is not allowed.");
             } else {
                 if (!AnnotatedElementHelper.isDefined(pt, "ignore", "true")) {
                     b.append("union u_" + v + "_t {\n");
-                    b.append(cctx.getCType(pt.getType()) + " p;\n");
-                    b.append("byte bytebuffer[" + cctx.getCByteSize(pt.getType(), 0) + "];\n");
+                    b.append(cctx.getCType(pt.getTypeRef().getType()) + " p;\n");
+                    b.append("byte bytebuffer[" + cctx.getCByteSize(pt.getTypeRef().getType(), 0) + "];\n");
                     b.append("} u_" + v + ";\n");
                     b.append("u_" + v + ".p = " + v + ";\n");
 
@@ -100,7 +101,7 @@ public class PosixTextDigitSerializerPlugin extends SerializationPlugin {
     }
 
     @Override
-    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender) {
+    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender, ExternalConnector eco) {
         builder.append("int len = strlen((char *) " + bufferName + ");\n" +
                 "            /*TRACE_LEVEL_2*/printf(\"[/*PORT_NAME*/] l:%i\\n\", len);\n" +
                 "            if ((len % 3) == 0) {\n" +

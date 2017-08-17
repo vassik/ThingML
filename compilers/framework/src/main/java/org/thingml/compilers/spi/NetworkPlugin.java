@@ -21,18 +21,6 @@
  */
 package org.thingml.compilers.spi;
 
-/**
- *
- * @author sintef
- */
-
-import org.eclipse.emf.ecore.util.EcoreUtil;
-import org.sintef.thingml.*;
-import org.sintef.thingml.helpers.ConfigurationHelper;
-import org.thingml.compilers.Context;
-import org.thingml.compilers.checker.Checker;
-import org.thingml.compilers.checker.Rule;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,12 +29,27 @@ import java.util.Set;
  *
  * @author sintef
  */
-public abstract class NetworkPlugin extends Rule {
+
+import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.thingml.compilers.Context;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Protocol;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.validation.Checker;
+
+/**
+ *
+ * @author sintef
+ */
+public abstract class NetworkPlugin {
 
     Set<Protocol> assignedProtocols = new HashSet<>();
 
-    public NetworkPlugin() {
-    }
+    public NetworkPlugin() {}
 
     //abstract public NetworkPlugin clone();
 
@@ -119,7 +122,16 @@ public abstract class NetworkPlugin extends Rule {
     public Set<Thing> getThings(Configuration cfg, Protocol prot) {
         Set<Thing> res = new HashSet<>();
         for (ExternalConnector eco : this.getExternalConnectors(cfg, prot)) {
-            res.add(eco.getInst().getInstance().getType());
+            res.add(eco.getInst().getType());
+        }
+        return res;
+    }
+
+    public Set<ThingPortMessage> getMessagesSent(ExternalConnector eco) {
+        Set<ThingPortMessage> res = new HashSet<ThingPortMessage>();
+        for (Message m : eco.getPort().getSends()) {
+            ThingPortMessage tpm = new ThingPortMessage(eco.getInst().getType(), eco.getPort(), m);
+            res.add(tpm);
         }
         return res;
     }
@@ -127,12 +139,16 @@ public abstract class NetworkPlugin extends Rule {
     public Set<ThingPortMessage> getMessagesSent(Configuration cfg, Protocol prot) {
         Set<ThingPortMessage> res = new HashSet<ThingPortMessage>();
         for (ExternalConnector eco : this.getExternalConnectors(cfg, prot)) {
-            for (Message m : eco.getPort().getSends()) {
-                ThingPortMessage tpm = new ThingPortMessage(eco.getInst().getInstance().getType(), eco.getPort(), m);
-                if (!res.contains(tpm)) {
-                    res.add(tpm);
-                }
-            }
+            res.addAll(this.getMessagesSent(eco));
+        }
+        return res;
+    }
+
+    public Set<ThingPortMessage> getMessagesReceived(ExternalConnector eco) {
+        Set<ThingPortMessage> res = new HashSet<ThingPortMessage>();
+        for (Message m : eco.getPort().getReceives()) {
+            ThingPortMessage tpm = new ThingPortMessage(eco.getInst().getType(), eco.getPort(), m);
+            res.add(tpm);
         }
         return res;
     }
@@ -140,12 +156,7 @@ public abstract class NetworkPlugin extends Rule {
     public Set<ThingPortMessage> getMessagesReceived(Configuration cfg, Protocol prot) {
         Set<ThingPortMessage> res = new HashSet<ThingPortMessage>();
         for (ExternalConnector eco : this.getExternalConnectors(cfg, prot)) {
-            for (Message m : eco.getPort().getReceives()) {
-                ThingPortMessage tpm = new ThingPortMessage(eco.getInst().getInstance().getType(), eco.getPort(), m);
-                if (!res.contains(tpm)) {
-                    res.add(tpm);
-                }
-            }
+            res.addAll(this.getMessagesReceived(eco));
         }
         return res;
     }

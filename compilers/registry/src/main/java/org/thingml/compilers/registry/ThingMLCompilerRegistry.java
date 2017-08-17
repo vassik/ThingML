@@ -17,26 +17,28 @@
 package org.thingml.compilers.registry;
 
 
-import org.thingml.compilers.ThingMLCompiler;
-import org.thingml.compilers.c.arduino.ArduinoCompiler;
-import org.thingml.compilers.c.posix.PosixCompiler;
-import org.thingml.compilers.cpp.sintefboard.SintefboardCompiler;
-import org.thingml.compilers.debugGUI.DebugGUICompiler;
-import org.thingml.compilers.java.JavaCompiler;
-import org.thingml.compilers.javascript.JSCompiler;
-import org.thingml.compilers.javascript.JSMTCompiler;
-import org.thingml.compilers.spi.ExternalThingPlugin;
-import org.thingml.compilers.uml.PlantUMLCompiler;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.ServiceLoader;
 import java.util.Set;
+
+import org.thingml.compilers.ThingMLCompiler;
+import org.thingml.compilers.c.arduino.ArduinoCompiler;
+import org.thingml.compilers.c.arduinomf.ArduinomfCompiler;
+import org.thingml.compilers.c.posix.PosixCompiler;
 import org.thingml.compilers.c.posixmt.PosixMTCompiler;
+import org.thingml.compilers.cpp.sintefboard.SintefboardCompiler;
+import org.thingml.compilers.c.teensy.TeensyCompiler;
+import org.thingml.compilers.debugGUI.DebugGUICompiler;
+import org.thingml.compilers.java.JavaCompiler;
+import org.thingml.compilers.javascript.BrowserJSCompiler;
+import org.thingml.compilers.javascript.NodeJSCompiler;
+import org.thingml.compilers.spi.ExternalThingPlugin;
 import org.thingml.compilers.spi.NetworkPlugin;
 import org.thingml.compilers.spi.SerializationPlugin;
+import org.thingml.compilers.uml.PlantUMLCompiler;
 
 /**
  * Created by ffl on 25.11.14.
@@ -59,12 +61,14 @@ public class ThingMLCompilerRegistry {
         if (instance == null) {
             instance = new ThingMLCompilerRegistry();
             instance.addCompiler(new ArduinoCompiler());
+            instance.addCompiler(new ArduinomfCompiler());
             instance.addCompiler(new PosixCompiler());
             instance.addCompiler(new PosixMTCompiler());
+            instance.addCompiler(new TeensyCompiler());
             instance.addCompiler(new SintefboardCompiler());
             instance.addCompiler(new JavaCompiler());
-            instance.addCompiler(new JSCompiler());
-            instance.addCompiler(new JSMTCompiler());
+            instance.addCompiler(new BrowserJSCompiler());
+            instance.addCompiler(new NodeJSCompiler());
             instance.addCompiler(new PlantUMLCompiler());
             instance.addCompiler(new DebugGUICompiler());
 

@@ -16,44 +16,29 @@
  */
 package org.thingml.compilers.java;
 
-import org.sintef.thingml.Configuration;
-import org.sintef.thingml.Thing;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.ConfigurationHelper;
+import java.io.File;
+
 import org.thingml.compilers.Context;
 import org.thingml.compilers.ThingMLCompiler;
-import org.thingml.compilers.checker.Checker;
-import org.thingml.compilers.configuration.CfgExternalConnectorCompiler;
-import org.thingml.compilers.java.cepHelper.JavaCepViewCompiler;
-import org.thingml.compilers.java.cepHelper.JavaGenerateSourceDeclaration;
 import org.thingml.compilers.utils.OpaqueThingMLCompiler;
-
-import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
+import org.thingml.utilities.logging.Logger;
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.validation.Checker;
 
 /**
  * Created by ffl on 25.11.14.
  */
 public class JavaCompiler extends OpaqueThingMLCompiler {
 
-    {
-        Map<String, CfgExternalConnectorCompiler> connectorCompilerMap = new HashMap<String, CfgExternalConnectorCompiler>();
-        connectorCompilerMap.put("kevoree-java", new Java2Kevoree());
-        connectorCompilerMap.put("swing", new Java2Swing());
-        addConnectorCompilers(connectorCompilerMap);
-    }
-
     public JavaCompiler() {
         super(new JavaThingActionCompiler(), new JavaThingApiCompiler(), new JavaCfgMainGenerator(),
-                new JavaCfgBuildCompiler(), new JavaThingImplCompiler(),
-                new JavaThingCepCompiler(new JavaCepViewCompiler(), new JavaGenerateSourceDeclaration()));
-        this.checker = new Checker(this.getID()) {
-            @Override
-            public void do_check(Configuration cfg) {
-                do_generic_check(cfg);
-            }
-        };
+                new JavaCfgBuildCompiler(), new JavaThingImplCompiler());
+        this.checker = new Checker(this.getID(), null);
+        connectorCompilers.clear();
+        connectorCompilers.put("swing", new Java2Swing());
     }
 
     @Override
@@ -76,9 +61,9 @@ public class JavaCompiler extends OpaqueThingMLCompiler {
     }
 
     @Override
-    public void do_call_compiler(Configuration cfg, String... options) {
-        this.checker.do_check(cfg);
-        this.checker.printReport();
+    public void do_call_compiler(Configuration cfg, Logger log, String... options) {
+        this.checker.do_check(cfg, false);
+        //this.checker.printReport(log);
 
         Context ctx = new Context(this, "match", "requires", "type", "abstract", "do", "finally", "import", "object", "throw", "case", "else", "for", "lazy", "override", "return", "trait", "catch", "extends", "forSome", "match", "package", "sealed", "try", "while", "class", "false", "if", "new", "private", "super", "true", "final", "null", "protected", "this", "_", ":", "=", "=>", "<-", "<:", "<%", ">:", "#", "@");
         ctx.addContextAnnotation("thisRef", "");
@@ -108,9 +93,8 @@ public class JavaCompiler extends OpaqueThingMLCompiler {
         ctx.getCompiler().getMainCompiler().generateMainAndInit(cfg, ThingMLHelpers.findContainingModel(cfg), ctx);
         
         //GENERATE A DOCKERFILE IF ASKED
-        ctx.getCompiler().getCfgBuildCompiler().generateDockerFile(cfg, ctx);
-        
         ctx.getCompiler().getCfgBuildCompiler().generateBuildScript(cfg, ctx);
+        ctx.getCompiler().getCfgBuildCompiler().generateDockerFile(cfg, ctx);
         ctx.writeGeneratedCodeToFiles();
         ctx.generateNetworkLibs(cfg);
     }

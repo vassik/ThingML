@@ -21,15 +21,19 @@
  */
 package org.thingml.compilers.c.checkerRules;
 
-import org.sintef.thingml.*;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.sintef.thingml.helpers.ConfigurationHelper;
-import org.thingml.compilers.checker.Checker;
-import org.thingml.compilers.checker.Rule;
-
 import java.util.LinkedList;
 import java.util.List;
+
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.validation.Checker;
+import org.thingml.xtext.validation.Rule;
 
 /**
  *
@@ -37,8 +41,7 @@ import java.util.List;
  */
 public class PointerParameters extends Rule {
 
-
-    @Override
+	@Override
     public Checker.InfoType getHighestLevel() {
         return Checker.InfoType.ERROR;
     }
@@ -63,10 +66,10 @@ public class PointerParameters extends Rule {
                     messages.addAll(p.getSends());
                     for (Message m : messages) {
                         for (Parameter pt : m.getParameters()) {
-                            if (AnnotatedElementHelper.isDefined(pt.getType(), "c_byte_size", "*")) {
+                            if (AnnotatedElementHelper.isDefined(pt.getTypeRef().getType(), "c_byte_size", "*")) {
                                 checker.addError("C", "Message including pointer parameters sent/received asynchronously.", m);
                             }
-                            if (pt.isIsArray()) {
+                            if (pt.getTypeRef().isIsArray()) {
                                 checker.addError("C", "Message including array parameters sent/received asynchronously.", m);
                             }
                         }

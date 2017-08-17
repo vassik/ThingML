@@ -26,17 +26,6 @@
  */
 package org.thingml.networkplugins.java;
 
-import org.apache.commons.io.IOUtils;
-import org.eclipse.emf.ecore.util.EcoreUtil;
-import org.sintef.thingml.Message;
-import org.sintef.thingml.ObjectType;
-import org.sintef.thingml.Parameter;
-import org.sintef.thingml.PrimitiveType;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.thingml.compilers.Context;
-import org.thingml.compilers.java.JavaHelper;
-import org.thingml.compilers.spi.SerializationPlugin;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
@@ -46,13 +35,23 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.io.IOUtils;
+import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.thingml.compilers.java.JavaHelper;
+import org.thingml.compilers.spi.SerializationPlugin;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
+import org.thingml.xtext.thingML.PrimitiveType;
+
 public class JavaByteArraySerializerPlugin extends SerializationPlugin {
 
-    private Set<Message> messages = new HashSet<Message>();
+    public JavaByteArraySerializerPlugin() {
+		super();
+	}
 
-    private void clearMessages() {
-        messages.clear();
-    }
+	private Set<Message> messages = new HashSet<Message>();
 
     private boolean containsMessage(Message m) {
         for(Message msg : messages) {
@@ -82,38 +81,38 @@ public class JavaByteArraySerializerPlugin extends SerializationPlugin {
     }
 
     @Override
-    public String generateSerialization(StringBuilder builder, String bufferName, Message m) {
+    public String generateSerialization(StringBuilder builder, String bufferName, Message m, ExternalConnector eco) {
         int size = 2; //code encoded by a 2 bytes
         for (Parameter p : m.getParameters()) {
-            if (p.getType() instanceof PrimitiveType) {
-                size = size + ((PrimitiveType) p.getType()).getByteSize();
+            if (p.getTypeRef().getType() instanceof PrimitiveType) {
+                size = size + (int)((PrimitiveType) p.getTypeRef().getType()).getByteSize();
             }
         }
         //Serialize message into binary
         final String code = AnnotatedElementHelper.hasAnnotation(m, "code") ? AnnotatedElementHelper.annotation(m, "code").get(0) : "0";
         instantiateMessageType(builder, m, code);
         builder.append("/**Serializes a message into a binary format*/\n");
-        builder.append("private byte[] format(" + context.firstToUpper(m.getName()) + "MessageType." + context.firstToUpper(m.getName()) + "Message _this) {\n");
+        builder.append("private Byte[] format(" + context.firstToUpper(m.getName()) + "MessageType." + context.firstToUpper(m.getName()) + "Message _this) {\n");
         builder.append("ByteBuffer buffer = ByteBuffer.allocate(" + size + ");\n");
         builder.append("buffer.order(ByteOrder.BIG_ENDIAN);\n");
         builder.append("buffer.putShort(" + m.getName().toUpperCase() + ".getCode());\n");
         for (Parameter p : m.getParameters()) {
             if(!AnnotatedElementHelper.isDefined(p, "do_not_forward", "true")) {
-                if (JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context).equals("byte")) {
+                if (JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context).equals("byte")) {
                     builder.append("buffer.put(_this." + p.getName() + ");\n");
-                } else if (JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context).equals("boolean")) {
+                } else if (JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context).equals("boolean")) {
                     builder.append("if(" + p.getName() + ") buffer.put((byte)0x01); else buffer.put((byte)0x00); ");
-                } else  if (JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context).equals("char")) {
+                } else  if (JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context).equals("char")) {
                     builder.append("try {\n");
                     builder.append("buffer.put(new Character(_this." + p.getName() + ").toString().getBytes(\"UTF-8\")[0]);\n");
                     builder.append("} catch(Exception e){return null;}\n");
                 }
                 else {
-                    builder.append("buffer.put" + context.firstToUpper(JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context)) + "(_this." + p.getName() + ");\n");
+                    builder.append("buffer.put" + context.firstToUpper(JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context)) + "(_this." + p.getName() + ");\n");
                 }
             }
         }
-        builder.append("return buffer.array();\n");
+        builder.append("return JavaBinaryHelper.toObject(buffer.array());\n");
         builder.append("}\n\n");
 
 
@@ -121,7 +120,7 @@ public class JavaByteArraySerializerPlugin extends SerializationPlugin {
     }
 
     @Override
-    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender) {
+    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender, ExternalConnector eco) {
         copyInterface();
         builder.append("package org.thingml.generated.network;\n\n");
         builder.append("import org.thingml.generated.messages.*;\n");
@@ -144,11 +143,11 @@ public class JavaByteArraySerializerPlugin extends SerializationPlugin {
             builder.append("case " + code + ":{\n");
             for (Parameter p : m.getParameters()) {
                 if(!AnnotatedElementHelper.isDefined(p, "do_not_forward", "true")) {
-                    final String javaType = JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context);
+                    final String javaType = JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context);
                     if ("byte".equals(javaType)) {
-                        builder.append("final " + JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context) + " " + p.getName() + " = " + "buffer.get();\n");
+                        builder.append("final " + JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context) + " " + p.getName() + " = " + "buffer.get();\n");
                     } else if ("boolean".equals(javaType)) {
-                        builder.append("final " + JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context) + " " + p.getName() + " = " + "buffer.get() == 0x00 ? false : true;\n");
+                        builder.append("final " + JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context) + " " + p.getName() + " = " + "buffer.get() == 0x00 ? false : true;\n");
                     } else if ("char".equals(javaType)) {
                         builder.append("char " + p.getName() + " = '\0';\n");
                         builder.append("try{\n");
@@ -158,7 +157,7 @@ public class JavaByteArraySerializerPlugin extends SerializationPlugin {
                     } else if ("String".equals(javaType)) {
                         //TODO [0: #bytes size, 1:size[#bytes size], 2(-3-5): [UTF-8 bytes]]
                     } else {
-                        builder.append("final " + JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context) + " " + p.getName() + " = " + "buffer.get" + context.firstToUpper(JavaHelper.getJavaType(p.getType(), p.getCardinality() != null, context)) + "();\n");
+                        builder.append("final " + JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context) + " " + p.getName() + " = " + "buffer.get" + context.firstToUpper(JavaHelper.getJavaType(p.getTypeRef().getType(), p.getTypeRef().getCardinality() != null, context)) + "();\n");
                     }
                 }
             }

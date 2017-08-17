@@ -16,10 +16,11 @@
  */
 package org.thingml.xtext.helpers;
 
-import org.thingml.xtext.thingML.*;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import org.thingml.xtext.thingML.AnnotatedElement;
+import org.thingml.xtext.thingML.PlatformAnnotation;
 
 /**
  * Created by ffl on 10.05.2016.
@@ -27,6 +28,13 @@ import java.util.List;
 public class AnnotatedElementHelper {
 
 
+	private static String cleanAnnotation(String value) {
+		if (value.startsWith("\"") && value.endsWith("\"")) {
+			return value.substring(1, value.length()-1);
+		}
+		return value;
+	}
+	
     public static List<PlatformAnnotation> allAnnotations(AnnotatedElement self) {
         return self.getAnnotations();
     }
@@ -35,7 +43,7 @@ public class AnnotatedElementHelper {
     public static boolean isDefined(AnnotatedElement self, String annotation, String value) {
         for (PlatformAnnotation a : allAnnotations(self)) {
             if (a.getName().equals(annotation)) {
-                if (a.getValue().equals(value))
+                if (cleanAnnotation(a.getValue()).equals(value))
                     return true;
             }
         }
@@ -57,7 +65,7 @@ public class AnnotatedElementHelper {
         List<String> result = new ArrayList<String>();
         for (PlatformAnnotation a : self.getAnnotations()) {
             if (a.getName().equals(name)) {
-                result.add(a.getValue());
+                result.add(cleanAnnotation(a.getValue()));
             }
         }
         return result;
@@ -67,7 +75,7 @@ public class AnnotatedElementHelper {
         List<String> result = new ArrayList<String>();
         for (PlatformAnnotation a : self.getAnnotations()) {
             if (a.getName().equals(name)) {
-                result.add(a.getValue());
+                result.add(cleanAnnotation(a.getValue()));
             }
         }
         if (result.isEmpty())

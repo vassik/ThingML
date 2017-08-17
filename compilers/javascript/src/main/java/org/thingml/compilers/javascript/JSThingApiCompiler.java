@@ -16,61 +16,93 @@
  */
 package org.thingml.compilers.javascript;
 
-import org.sintef.thingml.Message;
-import org.sintef.thingml.Parameter;
-import org.sintef.thingml.Port;
-import org.sintef.thingml.Thing;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
 import org.thingml.compilers.Context;
 import org.thingml.compilers.DebugProfile;
 import org.thingml.compilers.thing.ThingApiCompiler;
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.ThingHelper;
+import org.thingml.xtext.thingML.Function;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Parameter;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Thing;
 
 /**
  * Created by bmori on 09.12.2014.
  */
 public class JSThingApiCompiler extends ThingApiCompiler {
 
-    protected String const_() {
-        return "const ";
-    }
-
     @Override
     public void generatePublicAPI(Thing thing, Context ctx) {
         final StringBuilder builder = ctx.getBuilder(ctx.firstToUpper(thing.getName()) + ".js");
+
+
+        builder.append("//ThingML-defined functions\n");
+        for (Function f : ThingHelper.allConcreteFunctions(thing)) {
+                builder.append(ctx.firstToUpper(thing.getName()) + ".prototype." + f.getName() + " = function(");
+                int j = 0;
+                for (Parameter p : f.getParameters()) {
+                    if (j > 0)
+                        builder.append(", ");
+                    builder.append(ctx.getVariableName(p));
+                    j++;
+                }
+                builder.append(") {\n");
+                /*if (debugProfile.getDebugFunctions().contains(f)) {
+                    builder.append("" + thing.getName() + "_print_debug(this, \"" + ctx.traceFunctionBegin(thing, f) + "(");
+                    int i = 0;
+                    for (Parameter pa : f.getParameters()) {
+                        if (i > 0)
+                            builder.append(", ");
+                        builder.append("\" + ");
+                        builder.append(ctx.getVariableName(pa));
+                        builder.append(" + \"");
+                        i++;
+                    }
+                    builder.append(")...\");\n");
+                }*/
+                ctx.getCompiler().getThingActionCompiler().generate(f.getBody(), builder, ctx);
+
+                /*if (debugProfile.getDebugFunctions().contains(f)) {
+                    builder.append("" + thing.getName() + "_print_debug(this, \"" + ctx.traceFunctionDone(thing, f) + "\");\n");
+                }*/
+                builder.append("};\n\n");
+        }
 
         if (ThingMLHelpers.allStateMachines(thing).size() > 0) {
             //Lifecycle
             builder.append("//Public API for lifecycle management\n");
             builder.append(ctx.firstToUpper(thing.getName()) + ".prototype._stop = function() {\n");
-            builder.append("this.forks.forEach(function (fork) {\n");
-            builder.append("fork._stop();\n");
-            builder.append("fork._delete();\n");
-            builder.append("});\n");
+            if(ThingHelper.hasSession(thing)) {
+                builder.append("this.forks.forEach(function (fork) {\n");
+                builder.append("fork._stop();\n");
+                builder.append("fork._delete();\n");
+                builder.append("});\n");
 
-            builder.append("if (this.root !== null && this.root !== undefined) {\n");
-            builder.append("const forkLength = this.root.forks.length;\n");
-            builder.append("var idFork = 0;");
-            builder.append("for (var _i = 0; _i < forkLength; _i++) {\n");
-            builder.append("if (this.root.forks[_i] === this) {\n");
-            builder.append("idFork = _i\n");
-            builder.append("}\n");
-            builder.append("}\n");
-            builder.append("this.root.forks.splice(idFork, 1);\n");
-            builder.append("}\n");
+                builder.append("const forkLength = this.root.forks.length;\n");
+                builder.append("let idFork = 0;");
+                builder.append("for (let _i = 0; _i < forkLength; _i++) {\n");
+                builder.append("if (this.root.forks[_i] === this) {\n");
+                builder.append("idFork = _i\n");
+                builder.append("}\n");
+                builder.append("}\n");
+                builder.append("this.root.forks.splice(idFork, 1);\n");
+            }
 
             builder.append("this.root = null;\n");
-            builder.append("this.forks = [];\n");
+            if(ThingHelper.hasSession(thing)) {
+                builder.append("this.forks = [];\n");
+            }
             builder.append("this.ready = false;\n");
             if (ThingMLHelpers.allStateMachines(thing).get(0).getExit() != null)
                 ctx.getCompiler().getThingActionCompiler().generate(ThingMLHelpers.allStateMachines(thing).get(0).getExit(), builder, ctx);
-            builder.append("}\n\n");
+            builder.append("};\n\n");
 
             builder.append(ctx.firstToUpper(thing.getName()) + ".prototype._delete = function() {\n");
             builder.append("this.statemachine = null;\n");
             builder.append("this." + ThingMLHelpers.allStateMachines(thing).get(0).getName() + "_instance = null;\n");
-            //TODO: remove listeners
-            builder.append("}\n\n");
+            builder.append("this.bus.removeAllListeners();\n");
+            builder.append("};\n\n");
 
             //Communication
             builder.append("//Public API for third parties\n");
@@ -78,25 +110,17 @@ public class JSThingApiCompiler extends ThingApiCompiler {
             builder.append("this." + ThingMLHelpers.allStateMachines(thing).get(0).getName() + "_instance = new StateJS.StateMachineInstance(\"" + ThingMLHelpers.allStateMachines(thing).get(0).getName() + "_instance" + "\");\n");
             builder.append("StateJS.initialise(this.statemachine, this." + ThingMLHelpers.allStateMachines(thing).get(0).getName() + "_instance" + " );\n");
             builder.append("this.ready = true;\n");
-            builder.append("}\n\n");
-
+            builder.append("};\n\n");
 
             builder.append(ctx.firstToUpper(thing.getName()) + ".prototype._receive = function(msg) {//msg = {_port:myPort, _msg:myMessage, paramN=paramN, ...}\n");
             builder.append("if(this.ready){\n");
-            builder.append("cepDispatch.call(this, msg);\n");
             builder.append("StateJS.evaluate(this.statemachine, this." + ThingMLHelpers.allStateMachines(thing).get(0).getName() + "_instance" + ", msg);\n");
-            builder.append("this.forks.forEach(function(fork){\n");
-            builder.append("fork._receive(msg);\n");
-            builder.append("});\n");
-            builder.append("}}\n");
-
-            //function to register listeners on attributes
-            builder.append(ctx.firstToUpper(thing.getName()) + ".prototype.onPropertyChange = function (property, callback) {\n");
-            builder.append("if (this.propertyListener[property] === undefined) {");
-            builder.append("this.propertyListener[property] = [];");
-            builder.append("}\n");
-            builder.append("this.propertyListener[property].push(callback);\n");
-            builder.append("}\n\n");
+            if(ThingHelper.hasSession(thing)) {
+                builder.append("this.forks.forEach(function(fork){\n");
+                builder.append("fork._receive(msg);\n");
+                builder.append("});\n");
+            }
+            builder.append("} else { setTimeout(()=>this._receive(msg),0) }};\n");
 
             generatePublicPort(thing, builder, ctx);
         }
@@ -133,51 +157,9 @@ public class JSThingApiCompiler extends ThingApiCompiler {
                         builder.append(", " + ctx.protectKeyword(pa.getName()) + ":" + ctx.protectKeyword(pa.getName()));
                     }
                     builder.append("});\n");
-                    builder.append("}\n\n");
+                    builder.append("};\n\n");
                 }
             }
         }
     }
-
-    protected void callListeners(Thing t, Port p, Message m, StringBuilder builder, Context ctx, DebugProfile debugProfile) {
-        final boolean debug = debugProfile.getDebugMessages().get(p) != null && debugProfile.getDebugMessages().get(p).contains(m);
-        if (debug) {
-            builder.append("" + t.getName() + "_print_debug(this, \"" + ctx.traceSendMessage(p.getOwner(), p, m) + "(");
-            int i = 0;
-            for (Parameter pa : m.getParameters()) {
-                if (i > 0)
-                    builder.append(", ");
-                builder.append("\" + ");
-                builder.append(ctx.protectKeyword(pa.getName()));
-                builder.append(" + \"");
-                i++;
-            }
-            builder.append(")\");\n");
-        }
-
-        if (!AnnotatedElementHelper.isDefined(p, "public", "false") && p.getSends().size() > 0) {
-            builder.append("//notify listeners\n");
-            builder.append(const_() + "arrayLength = self." + m.getName() + "On" + p.getName() + "Listeners.length;\n");
-
-            if (debug) {
-                builder.append("if (arrayLength < 1) {\n");
-                builder.append("" + t.getName() + "_print_debug(this, \"(" + ThingMLHelpers.findContainingThing(p).getName() + "): message lost, because no connector/listener is defined!\");\n");
-                builder.append("}\n");
-            }
-
-            builder.append("for (let _i = 0; _i < arrayLength; _i++) {\n");
-            builder.append("self." + m.getName() + "On" + p.getName() + "Listeners[_i](");
-            int i = 0;
-            for (Parameter pa : m.getParameters()) {
-                if (i > 0) {
-                    builder.append(", ");
-                }
-                builder.append(ctx.protectKeyword(pa.getName()));
-                i++;
-            }
-            builder.append(");\n");
-            builder.append("}\n");
-        }
-    }
-
 }

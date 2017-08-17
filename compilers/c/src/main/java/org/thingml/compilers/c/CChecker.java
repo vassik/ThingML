@@ -21,14 +21,15 @@
  */
 package org.thingml.compilers.c;
 
-import org.sintef.thingml.Configuration;
-import org.thingml.compilers.c.checkerRules.ArrayCardinality;
-import org.thingml.compilers.c.checkerRules.PointerParameters;
-import org.thingml.compilers.checker.Checker;
-import org.thingml.compilers.checker.Rule;
-
 import java.util.HashSet;
 import java.util.Set;
+
+import org.thingml.compilers.c.checkerRules.ArrayCardinality;
+import org.thingml.compilers.c.checkerRules.PointerParameters;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.validation.AbstractThingMLValidator;
+import org.thingml.xtext.validation.Checker;
+import org.thingml.xtext.validation.Rule;
 
 /**
  *
@@ -37,15 +38,15 @@ import java.util.Set;
 public abstract class CChecker extends Checker {
     Set<Rule> CRules;
 
-    public CChecker(String compiler) {
-        super(compiler);
+    public CChecker(String compiler, AbstractThingMLValidator validator) {
+        super(compiler, validator);
         CRules = new HashSet<Rule>();
         CRules.add(new PointerParameters());
         CRules.add(new ArrayCardinality());
     }
 
     @Override
-    public void do_generic_check(Configuration cfg) {
+    public void do_check(Configuration cfg, boolean reportInEditor) {
         String Cname = "C";
 
         for (Rule r : CRules) {
@@ -53,7 +54,7 @@ public abstract class CChecker extends Checker {
         }
         //ADD C specific checks
 
-        super.do_generic_check(cfg);
+        super.do_check(cfg, reportInEditor);
     }
 
 }

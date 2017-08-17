@@ -3,40 +3,39 @@
  */
 package org.thingml.xtext.scoping
 
+import java.util.ArrayList
+import org.eclipse.emf.ecore.ENamedElement
 import org.eclipse.emf.ecore.EObject
 import org.eclipse.emf.ecore.EReference
-import org.thingml.xtext.thingML.ThingMLPackage
 import org.eclipse.xtext.scoping.IScope
-import org.thingml.xtext.thingML.Port
-import org.sintef.thingml.constraints.ThingMLHelpers
-import org.thingml.xtext.thingML.Thing
 import org.eclipse.xtext.scoping.Scopes
-import org.thingml.xtext.thingML.SendAction
+import org.thingml.xtext.constraints.ThingMLHelpers
+import org.thingml.xtext.helpers.ConfigurationHelper
+import org.thingml.xtext.helpers.ThingMLElementHelper
+import org.thingml.xtext.thingML.CompositeState
 import org.thingml.xtext.thingML.ConfigPropertyAssign
+import org.thingml.xtext.thingML.Configuration
 import org.thingml.xtext.thingML.Connector
 import org.thingml.xtext.thingML.Decrement
+import org.thingml.xtext.thingML.EnumLiteralRef
+import org.thingml.xtext.thingML.EventReference
 import org.thingml.xtext.thingML.ExternalConnector
 import org.thingml.xtext.thingML.Increment
 import org.thingml.xtext.thingML.Instance
-import org.thingml.xtext.thingML.MessageParameter
+import org.thingml.xtext.thingML.Port
 import org.thingml.xtext.thingML.PropertyAssign
 import org.thingml.xtext.thingML.PropertyReference
 import org.thingml.xtext.thingML.ReceiveMessage
-import org.thingml.xtext.thingML.Reference
+import org.thingml.xtext.thingML.Region
+import org.thingml.xtext.thingML.SendAction
+import org.thingml.xtext.thingML.Session
 import org.thingml.xtext.thingML.StartSession
-import org.thingml.xtext.thingML.ThingMLModel
-import org.thingml.xtext.thingML.Transition
-import org.thingml.xtext.thingML.TypeRef
-import org.thingml.xtext.thingML.VariableAssignment
-import java.util.ArrayList
-import org.thingml.xtext.thingML.EnumLiteralRef
-import org.thingml.xtext.thingML.Configuration
-import org.thingml.xtext.helpers.ConfigurationHelper
 import org.thingml.xtext.thingML.State
-import org.thingml.xtext.thingML.CompositeState
-import org.thingml.xtext.helpers.CompositeStateHelper
-import org.thingml.xtext.thingML.SimpleParamRef
-import org.eclipse.emf.ecore.ENamedElement
+import org.thingml.xtext.thingML.Thing
+import org.thingml.xtext.thingML.ThingMLPackage
+import org.thingml.xtext.thingML.Transition
+import org.thingml.xtext.thingML.VariableAssignment
+import org.thingml.xtext.thingML.StateContainer
 
 /**
  * This class contains custom scoping description.
@@ -95,9 +94,6 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 		else if (reference == p.instance_Type) {
 			return scopeForInstance_Type(context as Instance);
 		}
-		else if (reference == p.messageParameter_MsgRef) {
-			return scopeForMessageParameter_MsgRef(context as MessageParameter);
-		}
 		else if (reference == p.propertyAssign_Property) {
 			return scopeForPropertyAssign_Property(context as PropertyAssign);
 		}
@@ -109,9 +105,6 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 		}
 		else if (reference == p.receiveMessage_Message) {
 			return scopeForReceiveMessage_Message(context as ReceiveMessage);
-		}
-		else if (reference == p.reference_Reference) {
-			return scopeForReference_Reference(context);
 		}
 		else if (reference == p.startSession_Session) {
 			return scopeForStartSession_Session(context as StartSession);
@@ -126,16 +119,27 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 		else if (reference == p.typeRef_Type) {
 			return scopeForTypeRef_Type(context);
 		}
+		else if (reference == p.castExpression_Type) {
+			return scopeForCastExpression_Type(context);
+		}
 		else if (reference == p.variableAssignment_Property) {
 			return scopeForVariableAssignment_Property(context as VariableAssignment);
 		}
-		else if (reference == p.compositeState_Initial) {
-			return scopeForCompositeState_Initial(context as CompositeState);
+		else if (reference == p.stateContainer_Initial) {
+			return scopeForStateContainer_Initial(context as StateContainer);
 		}
-	//	else if (reference == p.simpleParamRef_ParameterRef) {
-	//		return simpleParamRef_ParameterRef(context as SimpleParamRef);
-	//	}
-	
+		else if (reference == p.eventReference_ReceiveMsg) {
+			return scopeForEventReference_ReceiveMsg(context as EventReference);
+		}
+		else if (reference == p.eventReference_Parameter) {
+			return scopeForEventReference_Parameter(context as EventReference);
+		}
+		else if (reference == p.startSession_Session) {
+			return scopeForStartSession_Session(context as StartSession);
+		}
+		else if (reference == p.configPropertyAssign_Instance || reference == p.connector_Cli || reference == p.connector_Srv || reference == p.externalConnector_Inst) {
+			return scopeForConfigurationInstances(ThingMLElementHelper.findContainingConfiguration(context));
+		}
 		else {
 			System.out.println("INFO: Resolving reference : " + reference.name + " in Class " + (reference.eContainer as ENamedElement).getName);
 		}
@@ -147,15 +151,40 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	
 	protected ArrayList EMPTY = new ArrayList();
 	
-	
-	def protected IScope simpleParamRef_ParameterRef(SimpleParamRef context) {
-		//ThingMLHelpers.findContainingHandler(context).event
-		//Scopes.scopeFor( context. );
+	def protected IScope scopeForStateContainer_Initial(StateContainer context) {
+		Scopes.scopeFor(context.substate);
 	}
 	
-	def protected IScope scopeForCompositeState_Initial(CompositeState context) {
+	def protected IScope scopeForConfigurationInstances(Configuration context) {
+		Scopes.scopeFor(ConfigurationHelper.allInstances(context));
+	}
+	
+	def protected IScope scopeForSession_Initial(Session context) {
 		Scopes.scopeFor( context.substate );
 	}
+	
+	def protected IScope scopeForEventReference_ReceiveMsg(EventReference context) {
+		var h = ThingMLHelpers.findContainingHandler(context)
+		if (h==null) {
+			Scopes.scopeFor( EMPTY );
+		}
+		else {
+			Scopes.scopeFor(h.event)
+		}
+	}
+	
+	def protected IScope scopeForEventReference_Parameter(EventReference context) {
+		
+		if (context.receiveMsg != null && context.receiveMsg instanceof ReceiveMessage) {
+			Scopes.scopeFor( (context.receiveMsg as ReceiveMessage).message.parameters ); 
+		}
+		else {
+			Scopes.scopeFor( EMPTY );
+		}
+	}
+	
+	
+	
 	
 	def protected IScope scopeForPort_SendsReceives(Port context) {
 		Scopes.scopeFor( ThingMLHelpers.allMessages(context.eContainer as Thing) );
@@ -170,7 +199,7 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	}
 	
 	def protected IScope scopeForConfigPropertyAssign_Property(ConfigPropertyAssign context) {
-		Scopes.scopeFor( ThingMLHelpers.allProperties(context.instance.instance.type) );
+		Scopes.scopeFor( ThingMLHelpers.allProperties(context.instance.type) );
 	}
 	
 	def protected IScope scopeForConnector_CliSrV(Connector context) {
@@ -178,11 +207,11 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	}
 	
 	def protected IScope scopeForConnector_Provided(Connector context) {
-		Scopes.scopeFor( ThingMLHelpers.allProvidedPorts(context.srv.instance.type) ); 
+		Scopes.scopeFor( ThingMLHelpers.allProvidedPorts(context.srv.type) ); 
 	}
 	
 	def protected IScope scopeForConnector_Required(Connector context) {
-		Scopes.scopeFor( ThingMLHelpers.allRequiredPorts(context.cli.instance.type) ); 
+		Scopes.scopeFor( ThingMLHelpers.allRequiredPorts(context.cli.type) ); 
 	}
 	
 	def protected IScope scopeForDecrement_Var(Decrement context) {
@@ -191,7 +220,7 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	}
 	
 	def protected IScope scopeForEnumLiteralRef_Enum(EnumLiteralRef context) {
-		Scopes.scopeFor( ThingMLHelpers.allEnnumerations(ThingMLHelpers.findContainingModel(context)) ); 
+		Scopes.scopeFor( ThingMLHelpers.allEnumerations(ThingMLHelpers.findContainingModel(context)) ); 
 	}
 	
 	def protected IScope scopeForEnumLiteralRef_Literal(EnumLiteralRef context) {
@@ -199,11 +228,12 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	}
 	
 	def protected IScope scopeForExternalConnector_Port(ExternalConnector context) {
-		Scopes.scopeFor( EMPTY ); // TODO ???
+		
+		Scopes.scopeFor( ThingMLHelpers.allPorts(context.inst.type) );
 	}
 	
 	def protected IScope scopeForExternalConnector_Protocol(ExternalConnector context) {
-		Scopes.scopeFor( EMPTY ); // TODO ???
+		Scopes.scopeFor( ThingMLHelpers.allProtocols(ThingMLHelpers.findContainingModel(context)) ); 
 	}
 	
 	def protected IScope scopeForFunctionCallExpressionFunctionCallStatement_Function(EObject context) {
@@ -219,13 +249,8 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 		Scopes.scopeFor( ThingMLHelpers.allThings(ThingMLHelpers.findContainingModel(context)) ); 
 	}
 	
-	def protected IScope scopeForMessageParameter_MsgRef(MessageParameter context) {
-		Scopes.scopeFor( EMPTY ); // TODO ???
-	}
 	
 	def protected IScope scopeForPropertyAssign_Property(PropertyAssign context) {
-		val ss = ThingMLHelpers.findContainingStartSession(context)
-		if (ss != null) return Scopes.scopeFor( ss.session.properties );
 		
 		val t = ThingMLHelpers.findContainingThing(context)
 		if (t != null) return Scopes.scopeFor( ThingMLHelpers.allProperties(t) );
@@ -253,7 +278,7 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	}
 	
 	def protected IScope scopeForStartSession_Session(StartSession context) {
-		Scopes.scopeFor( EMPTY ); // TODO
+		Scopes.scopeFor( ThingMLHelpers.allVisibleSessions(context) ); 
 	}
 	
 	def protected IScope scopeForThing_Includes(Thing context) {
@@ -268,6 +293,11 @@ class ThingMLScopeProvider extends AbstractThingMLScopeProvider {
 	def protected IScope scopeForTypeRef_Type(EObject context) {
 		Scopes.scopeFor( ThingMLHelpers.allTypes(ThingMLHelpers.findContainingModel(context)) ); 
 	}
+	
+	def protected IScope scopeForCastExpression_Type(EObject context) {
+		Scopes.scopeFor( ThingMLHelpers.allTypes(ThingMLHelpers.findContainingModel(context)) ); 
+	}
+	
 	
 	def protected IScope scopeForVariableAssignment_Property(VariableAssignment context) {
 		Scopes.scopeFor( ThingMLHelpers.allVisibleVariables(context) );

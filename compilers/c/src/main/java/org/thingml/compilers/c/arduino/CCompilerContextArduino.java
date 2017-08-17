@@ -16,14 +16,19 @@
  */
 package org.thingml.compilers.c.arduino;
 
-import org.sintef.thingml.*;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.ConfigurationHelper;
+import java.io.File;
+import java.util.ArrayList;
+
 import org.thingml.compilers.ThingMLCompiler;
 import org.thingml.compilers.c.CCompilerContext;
-import org.thingml.compilers.c.cepHelper.CCepHelper;
-
-import java.util.ArrayList;
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.Instance;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.thingML.ThingMLModel;
 
 /**
  * Created by ffl on 11.06.15.
@@ -51,9 +56,10 @@ public class CCompilerContextArduino extends CCompilerContext {
         ArrayList<String> modules = new ArrayList<String>();
         String main = getCurrentConfiguration().getName() + "_cfg.c";
 
+        
         for (String filename : generatedCode.keySet()) {
             if (filename.endsWith(".h")) {
-                headers.add(filename);
+            	headers.add(filename);
                 //System.out.println("Adding " + filename + " to headers");
             }
             if (filename.endsWith(".c") && !filename.equals(main)) {
@@ -65,20 +71,19 @@ public class CCompilerContextArduino extends CCompilerContext {
         StringBuilder pde = new StringBuilder();
 
         for (String f : headers) {
-            pde.append(generatedCode.get(f).toString());
+        	pde.append(generatedCode.get(f).toString());
         }
 
         for (String f : modules) {
-            pde.append(generatedCode.get(f).toString());
+        	pde.append(generatedCode.get(f).toString());
         }
 
         pde.append(generatedCode.get(main).toString());
-
         //writeTextFile(getCurrentConfiguration().getName() + ".pde", pde.toString());
-        writeTextFile(getCurrentConfiguration().getName() + ".ino", pde.toString());
+        writeTextFile(getCurrentConfiguration().getName() + File.separatorChar + getCurrentConfiguration().getName() + ".ino", "#include <stdint.h>\n#include <Arduino.h>\n"+pde.toString());
 
     }
-
+ 
     @Override
     public void generatePSPollingCode(Configuration cfg, StringBuilder builder) {
         ThingMLModel model = ThingMLHelpers.findContainingModel(cfg);
@@ -112,14 +117,6 @@ public class CCompilerContextArduino extends CCompilerContext {
                 }
 
             }
-        }
-    }
-
-    public void renameParameterUniquely(Thing thing) {
-        for (Stream s : thing.getStreams()) {
-            for (Message m : CCepHelper.getMessageFromStream(s).keySet())
-                for (Parameter p: m.getParameters())
-                    p.setName(s.getName() + m.getName() + p.getName());
         }
     }
 

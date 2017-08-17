@@ -16,19 +16,17 @@
  */
 package org.thingml.compilers.c.arduino;
 
-import org.sintef.thingml.Configuration;
-import org.sintef.thingml.Thing;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.ConfigurationHelper;
 import org.thingml.compilers.ThingMLCompiler;
 import org.thingml.compilers.c.CCfgMainGenerator;
 import org.thingml.compilers.c.CCompilerContext;
 import org.thingml.compilers.c.CThingImplCompiler;
-import org.thingml.compilers.c.cepHelper.CCepHelper;
 import org.thingml.compilers.configuration.CfgBuildCompiler;
-import org.thingml.compilers.thing.ThingCepSourceDeclaration;
-import org.thingml.compilers.thing.ThingCepViewCompiler;
 import org.thingml.compilers.utils.OpaqueThingMLCompiler;
+import org.thingml.utilities.logging.Logger;
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.Thing;
 
 /**
  * Created by ffl on 25.11.14.
@@ -37,9 +35,8 @@ public class ArduinoCompiler extends OpaqueThingMLCompiler {
 
     public ArduinoCompiler() {
         super(new CThingActionCompilerArduino(), new CThingApiCompilerArduino(), new CCfgMainGenerator(),
-                new CfgBuildCompiler(), new CThingImplCompiler(),
-                new ArduinoThingCepCompiler(new ThingCepViewCompiler(), new ThingCepSourceDeclaration()));
-        this.checker = new ArduinoChecker(this.getID());
+                new CfgBuildCompiler(), new CThingImplCompiler());
+        this.checker = new ArduinoChecker(this.getID(), null);
     }
 
     @Override
@@ -62,7 +59,7 @@ public class ArduinoCompiler extends OpaqueThingMLCompiler {
     }
 
     @Override
-    public void do_call_compiler(Configuration cfg, String... options) {
+    public void do_call_compiler(Configuration cfg, Logger log, String... options) {
 
         CCompilerContext ctx = new CCompilerContextArduino(this);
         processDebug(cfg);
@@ -71,14 +68,12 @@ public class ArduinoCompiler extends OpaqueThingMLCompiler {
 
         //Checks
 
-        this.checker.do_check(cfg);
-        this.checker.printReport();
+        this.checker.do_check(cfg, false);
+        //this.checker.printReport(log);
 
         // GENERATE A MODULE FOR EACH THING
         for (Thing thing : ConfigurationHelper.allThings(cfg)) {
             ctx.setConcreteThing(thing);
-
-            ((CCompilerContextArduino) ctx).renameParameterUniquely(thing);
 
             // GENERATE HEADER
             ctx.getCompiler().getThingApiCompiler().generatePublicAPI(thing, ctx);
@@ -88,7 +83,6 @@ public class ArduinoCompiler extends OpaqueThingMLCompiler {
             ctx.clearConcreteThing();
         }
 
-        CCepHelper.generateTimerPolling(cfg, ctx);
         // GENERATE A MODULE FOR THE CONFIGURATION (+ its dependencies)
         getMainCompiler().generateMainAndInit(cfg, ThingMLHelpers.findContainingModel(cfg), ctx);
 

@@ -16,50 +16,69 @@
  */
 package org.thingml.compilers;
 
-import org.eclipse.emf.common.util.TreeIterator;
+import java.io.File;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
 import org.eclipse.emf.common.util.URI;
-import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.emf.ecore.util.EcoreUtil.Copier;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
-import org.fusesource.jansi.AnsiConsole;
-import org.sintef.thingml.*;
-import org.sintef.thingml.constraints.ThingMLHelpers;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.sintef.thingml.helpers.ConfigurationHelper;
-import org.sintef.thingml.helpers.ThingHelper;
-import org.sintef.thingml.resource.thingml.IThingmlTextDiagnostic;
-import org.sintef.thingml.resource.thingml.mopp.ThingmlResource;
-import org.sintef.thingml.resource.thingml.mopp.ThingmlResourceFactory;
-import org.thingml.compilers.checker.Checker;
+import org.eclipse.xtext.resource.SaveOptions;
+import org.eclipse.xtext.resource.XtextResource;
 import org.thingml.compilers.configuration.CfgBuildCompiler;
 import org.thingml.compilers.configuration.CfgExternalConnectorCompiler;
 import org.thingml.compilers.configuration.CfgMainGenerator;
 import org.thingml.compilers.spi.ExternalThingPlugin;
 import org.thingml.compilers.spi.NetworkPlugin;
 import org.thingml.compilers.spi.SerializationPlugin;
-import org.thingml.compilers.thing.*;
+import org.thingml.compilers.thing.ThingActionCompiler;
+import org.thingml.compilers.thing.ThingApiCompiler;
+import org.thingml.compilers.thing.ThingImplCompiler;
 import org.thingml.compilers.thing.common.FSMBasedThingImplCompiler;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.*;
+import org.thingml.utilities.logging.Logger;
+import org.thingml.xtext.ThingMLStandaloneSetup;
+import org.thingml.xtext.constraints.ThingMLHelpers;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.helpers.ConfigurationHelper;
+import org.thingml.xtext.helpers.ThingHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.Function;
+import org.thingml.xtext.thingML.Instance;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Property;
+import org.thingml.xtext.thingML.Protocol;
+import org.thingml.xtext.thingML.Thing;
+import org.thingml.xtext.thingML.ThingMLModel;
+import org.thingml.xtext.validation.Checker;
+import org.thingml.xtext.validation.ThingMLValidator;
 
 /**
  * Created by ffl on 23.11.14.
  */
 public abstract class ThingMLCompiler {
 
-    public static Checker checker;
+    
     //FIXME: the code below related to loading and errors should be refactored and probably moved. It is just here right now as a convenience.
     public static List<String> errors;
     public static List<String> warnings;
-    public static ThingmlResource resource;
+    public static XtextResource resource;
     public static File currentFile;
     protected Context ctx = new Context(this);
+    public Checker checker = new Checker("ThingML", new ThingMLValidator());
     Map<String, Set<NetworkPlugin>> networkPluginsPerProtocol = new HashMap<>();
     Map<String, SerializationPlugin> serializationPlugins = new HashMap<>();
     Map<String, ExternalThingPlugin> externalThingPlugingPerExternalThing = new HashMap<>();
@@ -68,12 +87,12 @@ public abstract class ThingMLCompiler {
     private CfgMainGenerator mainCompiler;
     private CfgBuildCompiler cfgBuildCompiler;
     private ThingImplCompiler thingImplCompiler;
-    private ThingCepCompiler cepCompiler;
+
     //Debug
     private Map<Thing, DebugProfile> debugProfiles = new HashMap<>();
     private boolean containsDebug = false;
     //we might need several connector compilers has different ports might use different connectors
-    private Map<String, CfgExternalConnectorCompiler> connectorCompilers = new HashMap<String, CfgExternalConnectorCompiler>();
+    protected Map<String, CfgExternalConnectorCompiler> connectorCompilers = new HashMap<String, CfgExternalConnectorCompiler>();
     private OutputStream messageStream = System.out;
     private OutputStream errorStream = System.err;
     private File outputDirectory = null;
@@ -89,20 +108,18 @@ public abstract class ThingMLCompiler {
         this.mainCompiler = new CfgMainGenerator();
         this.cfgBuildCompiler = new CfgBuildCompiler();
         this.thingImplCompiler = new FSMBasedThingImplCompiler();
-        connectorCompilers.put("default", new CfgExternalConnectorCompiler());
-        this.cepCompiler = new ThingCepCompiler(new ThingCepViewCompiler(), new ThingCepSourceDeclaration());
     }
 
-    public ThingMLCompiler(ThingActionCompiler thingActionCompiler, ThingApiCompiler thingApiCompiler, CfgMainGenerator mainCompiler, CfgBuildCompiler cfgBuildCompiler, ThingImplCompiler thingImplCompiler, ThingCepCompiler cepCompiler) {
+    public ThingMLCompiler(ThingActionCompiler thingActionCompiler, ThingApiCompiler thingApiCompiler, CfgMainGenerator mainCompiler, CfgBuildCompiler cfgBuildCompiler, ThingImplCompiler thingImplCompiler) {
         this.thingActionCompiler = thingActionCompiler;
         this.thingApiCompiler = thingApiCompiler;
         this.mainCompiler = mainCompiler;
         this.cfgBuildCompiler = cfgBuildCompiler;
         this.thingImplCompiler = thingImplCompiler;
-        this.cepCompiler = cepCompiler;
     }
 
-    public static ThingMLModel loadModel(final File file) {
+    public static ThingMLModel loadModel(final File file) { return loadModel(file, Logger.SYSTEM); }
+    public static ThingMLModel loadModel(final File file, Logger log) {
         currentFile = file;
         errors = new ArrayList<String>();
         warnings = new ArrayList<String>();
@@ -112,25 +129,25 @@ public abstract class ThingMLCompiler {
         ResourceSet rs = new ResourceSetImpl();
         URI xmiuri = URI.createFileURI(file.getAbsolutePath());
         Resource model = rs.createResource(xmiuri);
-        resource = (ThingmlResource) model;
+        resource = (XtextResource) model;
         try {
             model.load(null);
-            org.eclipse.emf.ecore.util.EcoreUtil.resolveAll(model);
+            EcoreUtil.resolveAll(model);
             for (Resource r : model.getResourceSet().getResources()) {
-                checkEMFErrorsAndWarnings(r);
+                checkEMFErrorsAndWarnings(r, log);
             }
             if (errors.isEmpty()) {
                 ThingMLModel m = (ThingMLModel) model.getContents().get(0);
-                for (Configuration cfg : ThingMLHelpers.allConfigurations(m)) {
+                /*for (Configuration cfg : ThingMLHelpers.allConfigurations(m)) {
                     checker.do_generic_check(cfg);
-                }
+                }*/
                 if (errors.isEmpty()) {
                     return m;
                 }
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+        	log.error("Error loading ThingML model", e);
         }
         return null;
     }
@@ -142,24 +159,68 @@ public abstract class ThingMLCompiler {
     }
 
     private static void registerThingMLFactory() {
-        Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap(
-        ).put("thingml", new ThingmlResourceFactory());
+    	ThingMLStandaloneSetup.doSetup();
     }
+    
+    
+    /**
+     * Take a copy and flatten the model (removes imports and add all elements from the imports in the model)
+     * @param model
+     * @return
+     */
+    public static ThingMLModel flattenModel(ThingMLModel model) {
 
-    private static void save(ThingMLModel model, String location){
-        // Then you can load and save resources in the different
-        // formats using a resource set:
-        ResourceSet rs = new ResourceSetImpl();
-        //create empty xmi resource and populate it
-        Resource res = rs.createResource(URI.createFileURI(location));
-        for(ThingMLModel m : ThingMLHelpers.allThingMLModelModels(model)) {
-            EcoreUtil.resolveAll(m);
-            res.getContents().add(EcoreUtil.getRootContainer(m));
-            //res.getContents().addAll(EcoreUtil.getRootContainer(m).eContents());
+    	Copier copier = new Copier();
+    	
+    	if (model.eResource() != null) // TODO: Jakob - when models are flattened once, their resource dissapears
+    		EcoreUtil.resolveAll(model.eResource().getResourceSet());
+    	
+    	ThingMLModel result = (ThingMLModel)copier.copy(model);
+    	
+    	Collection<ThingMLModel> importedmodels = new ArrayList<ThingMLModel>();
+    	for(ThingMLModel m : ThingMLHelpers.allThingMLModelModels(model)) {
+    		if (m != model) {
+    			importedmodels.add((ThingMLModel)copier.copy(m));
+    		}
+    	}
+    	
+    	copier.copyReferences();
+    		
+    	for(ThingMLModel m : importedmodels) {
+        	if (m != result) {
+        		result.getConfigs().addAll(m.getConfigs());
+        		result.getProtocols().addAll(m.getProtocols());
+        		result.getTypes().addAll(m.getTypes());
+        	}
         }
+
+    	result.getImportURI().clear();
+    	
+    	// Add the new model to a resource set
+    	String uriString = "memory:/"+UUID.randomUUID().toString()+".thingml";
+    	ResourceSet rs = new ResourceSetImpl();
+        Resource res = rs.createResource(URI.createURI(uriString));
+        res.getContents().add(result);
+    	
+    	return result;
+    }
+    
+
+    private static void save(ThingMLModel model, String location) {
+    	
+    	if (!model.getImportURI().isEmpty())
+    		throw new Error("Only models without imports can be saved with this method. Use the 'flattenModel' method first.");
+    	
+        ResourceSet rs = new ResourceSetImpl();
+        Resource res = rs.createResource(URI.createFileURI(location));
+
+        res.getContents().add(model);
+        EcoreUtil.resolveAll(res);
+        
         try {
-            res.save(null);
-        } catch (IOException e) {
+        	SaveOptions opt = SaveOptions.newBuilder().format().noValidation().getOptions();
+            res.save(opt.toOptionsMap());
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -174,29 +235,31 @@ public abstract class ThingMLCompiler {
         ThingMLCompiler.save(model, location);
     }
 
-    private static boolean checkEMFErrorsAndWarnings(Resource model) {
-        System.out.println("Checking for EMF errors and warnings");
+    private static boolean checkEMFErrorsAndWarnings(Resource model, Logger log) {
+    	log.info("Checking for EMF errors and warnings");
         boolean isOK = true;
         if (model.getErrors().size() > 0) {
             isOK = false;
-            System.err.println("ERROR: The input model contains " + model.getErrors().size() + " errors.");
-            for (Resource.Diagnostic d : model.getErrors()) {
-                if (d instanceof IThingmlTextDiagnostic) {
-                    IThingmlTextDiagnostic e = (IThingmlTextDiagnostic) d;
-                    System.err.println("Syntax error in file " + d.getLocation() + " (" + e.getLine() + ", " + e.getColumn() + ")");
-                    errors.add("Syntax error in file " + d.getLocation() + " (" + e.getLine() + ", " + e.getColumn() + ")");
-                } else {
-                    System.err.println("Error in file  " + d.getLocation() + "(" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
-                    errors.add("Error in file  " + d.getLocation() + "(" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
-                }
+            log.error("ERROR: The input model contains " + model.getErrors().size() + " errors.");
+            for (Resource.Diagnostic d : model.getErrors()) {    
+            		String location = d.getLocation();
+            		if (location == null) {
+            			location = model.getURI().toFileString();
+            		}
+            		log.error("Error in file  " + location + " (" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
+                    errors.add("Error in file  " + location + " (" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());            	
             }
         }
 
         if (model.getWarnings().size() > 0) {
-            System.out.println("WARNING: The input model contains " + model.getWarnings().size() + " warnings.");
+        	log.warning("WARNING: The input model contains " + model.getWarnings().size() + " warnings.");
             for (Resource.Diagnostic d : model.getWarnings()) {
-                System.out.println("Warning in file  " + d.getLocation() + "(" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
-                warnings.add("Warning in file  " + d.getLocation() + "(" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
+          		String location = d.getLocation();
+        		if (location == null) {
+        			location = model.getURI().toFileString();
+        		}
+        		log.warning("Warning in file  " + location + " (" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
+                warnings.add("Warning in file  " + location + " (" + d.getLine() + ", " + d.getColumn() + "): " + d.getMessage());
             }
         }
         return isOK;
@@ -228,7 +291,8 @@ public abstract class ThingMLCompiler {
      * Entry point of the compiler
      * ************************************************************
      */
-    public abstract void compile(Configuration cfg, String... options);
+    public void compile(Configuration cfg, String... options) { compile(cfg, Logger.SYSTEM, options); }
+    public abstract void compile(Configuration cfg, Logger log, String... options);
 
     /**
      * Creates debug profiles
@@ -333,6 +397,16 @@ public abstract class ThingMLCompiler {
             }
             DebugProfile profile = new DebugProfile(thing, debugBehavior, debugFunctions, debugProperties, debugMessages, debugInstances);
             debugProfiles.put(thing, profile);
+            
+            // The behaviour of a thing may be defines in an included fragment which will also need to have a debug profile attached
+            // TODO: This is not a complete solution. If a fragement is imported in several things only the last will count
+            for (Thing t : ThingHelper.allIncludedThings(thing)) {
+            	
+            		profile = new DebugProfile(t, debugBehavior, debugFunctions, debugProperties, debugMessages, debugInstances);
+                    debugProfiles.put(t, profile);
+            	
+            }
+            
             this.containsDebug = this.containsDebug || profile.isActive();
         }
     }
@@ -368,14 +442,6 @@ public abstract class ThingMLCompiler {
         return thingImplCompiler;
     }
 
-    public ThingCepCompiler getCepCompiler() {
-        return cepCompiler;
-    }
-
-    public void addConnectorCompilers(Map<String, CfgExternalConnectorCompiler> connectorCompilers) {
-        this.connectorCompilers.putAll(connectorCompilers);
-    }
-
     public Map<String, CfgExternalConnectorCompiler> getConnectorCompilers() {
         return Collections.unmodifiableMap(connectorCompilers);
     }
@@ -408,7 +474,7 @@ public abstract class ThingMLCompiler {
             throw new Error("ERROR: The output directory has to be a directory (" + outDir.getAbsolutePath() + ").");
         if (!outDir.canWrite())
             throw new Error("ERROR: The output directory is not writable (" + outDir.getAbsolutePath() + ").");
-        outputDirectory = outDir.getAbsoluteFile();
+        outputDirectory = outDir.getAbsoluteFile();        
     }
   
     public File getInputDirectory() {
@@ -423,6 +489,7 @@ public abstract class ThingMLCompiler {
         if (!inDir.canRead())
             throw new Error("ERROR: The input directory is not readable (" + inDir.getAbsolutePath() + ").");
         inputDirectory = inDir.getAbsoluteFile();
+        ctx.setInputDirectory(inputDirectory);
     }
 
     public void addNetworkPlugin(NetworkPlugin np) {

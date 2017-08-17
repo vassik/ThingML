@@ -21,26 +21,28 @@
  */
 package org.thingml.compilers.spi;
 
-import org.sintef.thingml.Configuration;
-import org.sintef.thingml.Message;
-import org.thingml.compilers.Context;
-import org.thingml.compilers.ThingMLCompiler;
-import org.thingml.compilers.checker.Checker;
-import org.thingml.compilers.checker.Rule;
-
 import java.util.List;
 import java.util.Set;
+
+import org.thingml.compilers.Context;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Protocol;
+import org.thingml.xtext.validation.Checker;
 
 /**
  *
  * @author sintef
  */
-public abstract class SerializationPlugin extends Rule {
+public abstract class SerializationPlugin {
 
     public Context context;
     public Configuration configuration;
-
+    public Protocol protocol;
+    
     public SerializationPlugin() {
+    	super();
     }
 
     abstract public SerializationPlugin clone();
@@ -50,7 +52,11 @@ public abstract class SerializationPlugin extends Rule {
     }
 
     public void setContext(Context ctx) {
-        context = ctx;
+        this.context = ctx;
+    }
+
+    public void setProtocol(Protocol prot) {
+        this.protocol = prot;
     }
 
     public String getIncludes() {
@@ -81,7 +87,10 @@ public abstract class SerializationPlugin extends Rule {
      * 
      * Note: All parameters annotated as ignored must be ignored.
     */
-    public abstract String generateSerialization(StringBuilder builder, String bufferName, Message m);
+    public abstract String generateSerialization(StringBuilder builder, String bufferName, Message m, ExternalConnector eco);
+    public String generateSerialization(StringBuilder builder, String bufferName, Message m) {
+        return generateSerialization(builder, bufferName, m, null);
+    }
 
     /* Methods: generateParserBody
      * 
@@ -93,7 +102,7 @@ public abstract class SerializationPlugin extends Rule {
      *      - bufferSizeName : name of the variable that contains
      *                    the size of buffer.
      *      - messages : Model of the messages to be parsed
-     *      - sender : name of the variable describing the externalport
+     *      - sender : name of the variable describing the external port
      * 
      * Results:
      *      builder will contain code parsing buffer, and sending
@@ -101,14 +110,17 @@ public abstract class SerializationPlugin extends Rule {
      * 
      * Note: All paramters annotated as ignored must be ignored.
     */
-    public abstract void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender);
-    
+    public abstract void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender, ExternalConnector eco);
+    public void generateParserBody(StringBuilder builder, String bufferName, String bufferSizeName, Set<Message> messages, String sender) {
+        generateParserBody(builder, bufferName, bufferSizeName, messages, sender, null);
+    }
+
     /* ------------ Plugin Info (Mandatory) ------------ */
 
     /*
      * In case of overlapping protocol support, the
      * choice of plugin will be specified with the
-     * annotation @plugin "plugiID"
+     * annotation @plugin "pluginID"
     */
     public abstract String getPluginID();
 

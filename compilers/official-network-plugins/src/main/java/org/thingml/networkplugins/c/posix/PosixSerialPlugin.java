@@ -21,20 +21,25 @@
  */
 package org.thingml.networkplugins.c.posix;
 
-import org.sintef.thingml.*;
-import org.sintef.thingml.helpers.AnnotatedElementHelper;
-import org.thingml.compilers.Context;
-import org.thingml.compilers.c.CCompilerContext;
-import org.thingml.compilers.spi.NetworkPlugin;
-import org.thingml.compilers.spi.SerializationPlugin;
+import static java.lang.Integer.max;
 
 import java.io.UnsupportedEncodingException;
-import static java.lang.Integer.max;
-import static java.lang.Integer.min;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import org.thingml.compilers.Context;
+import org.thingml.compilers.c.CCompilerContext;
+import org.thingml.compilers.spi.NetworkPlugin;
+import org.thingml.compilers.spi.SerializationPlugin;
+import org.thingml.xtext.helpers.AnnotatedElementHelper;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.ExternalConnector;
+import org.thingml.xtext.thingML.Message;
+import org.thingml.xtext.thingML.Port;
+import org.thingml.xtext.thingML.Protocol;
+import org.thingml.xtext.thingML.Thing;
 
 /**
  *
@@ -42,7 +47,7 @@ import java.util.Set;
  */
 public class PosixSerialPlugin extends NetworkPlugin {
 
-    CCompilerContext ctx;
+	CCompilerContext ctx;
 
     public String getPluginID() {
         return "PosixSerialPlugin";

@@ -5,6 +5,13 @@
 target/
 */target/
 **/target/
+src-gen/
+*/src-gen/
+**/src-gen/
+xtend-gen/
+*/xtend-gen/
+**/xtend-gen/
+language/thingml/model/
 tmp/
 */tmp/
 **/tmp/
@@ -33,3 +40,6 @@ node_modules
 .workspace
 runtime-EclipseApplication
 testJar/config.properties
+**._trace
+**.xtendbin
+compilers/bundle/META-INF/MANIFEST.MF

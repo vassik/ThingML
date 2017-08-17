@@ -21,14 +21,16 @@
  */
 package org.thingml.compilers.debugGUI;
 
-import org.sintef.thingml.Configuration;
-import org.sintef.thingml.ExternalConnector;
+import java.io.File;
+
 import org.thingml.compilers.ThingMLCompiler;
 import org.thingml.compilers.configuration.CfgBuildCompiler;
-import org.thingml.compilers.thing.*;
+import org.thingml.compilers.thing.ThingActionCompiler;
+import org.thingml.compilers.thing.ThingApiCompiler;
 import org.thingml.compilers.utils.OpaqueThingMLCompiler;
-
-import java.io.File;
+import org.thingml.utilities.logging.Logger;
+import org.thingml.xtext.thingML.Configuration;
+import org.thingml.xtext.thingML.ExternalConnector;
 
 /**
  *
@@ -38,12 +40,11 @@ public class DebugGUICompiler extends OpaqueThingMLCompiler {
 
     public DebugGUICompiler() {
         super(new ThingActionCompiler(), new ThingApiCompiler(), new DebugGUICfgMainGenerator(),
-                new CfgBuildCompiler(), null,
-                new ThingCepCompiler(new ThingCepViewCompiler(), new ThingCepSourceDeclaration()));
+                new CfgBuildCompiler(), null);
     }
 
     @Override
-    public void do_call_compiler(Configuration cfg, String... options) {
+    public void do_call_compiler(Configuration cfg, Logger log, String... options) {
 
         DebugGUICompilerContext ctx = new DebugGUICompilerContext(this);
         processDebug(cfg);

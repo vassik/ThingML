@@ -8,7 +8,9 @@
 #include <ctype.h>
 #include <stdint.h>
 #include <math.h>
+#include <time.h>
 #include <mosquitto.h>
+
 /*INCLUDES*/
 
 struct /*PORT_NAME*/_Instance {

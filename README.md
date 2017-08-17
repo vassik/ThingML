@@ -1,4 +1,4 @@
-# ThingML
+![ThingML](Logotype_ThingML_100317_500px.png)
 
 The ThingML approach is composed of *i*) a **modeling language**, *ii*) a set of **tools** and *iii*) a **methodology**. The modeling language combines well-proven software modeling constructs for the design and implementation of distributed reactive systems:
 
@@ -8,9 +8,9 @@ The ThingML approach is composed of *i*) a **modeling language**, *ii*) a set of
 
 The ThingML language is supported by a set of tools, which include editors, transformations (e.g. export to UML) and an advanced multi-platform code generation framework, which support multiple target programming languages (C, Java, Javascript). The [methodology](https://heads-project.github.io/methodology/) documents the development processes and tools used by both the IoT service developers and the platform experts.
 
-> ThingML is distributed under the *[Apache 2.0 licence](https://www.apache.org/licenses/LICENSE-2.0)*, and has been developed by @ffleurey and @brice-morin of the Networked Systems and Services department of SINTEF in Oslo, Norway, together with a vibrant [open-source community](https://github.com/SINTEF-9012/ThingML/graphs/contributors).
+> ThingML is distributed under the *[Apache 2.0 licence](https://www.apache.org/licenses/LICENSE-2.0)*, and has been developed by @ffleurey and @brice-morin of the Networked Systems and Services department of SINTEF in Oslo, Norway, together with a vibrant [open-source community](https://github.com/TelluIoT/ThingML/graphs/contributors). ThingML is now owned by [Tellu](http://www.tellucloud.com/), but remains open-source.
 
-> **Issues, bug reports and feature requests should be submitted to the [issue tracker on GitHub](https://github.com/SINTEF-9012/ThingML/issues)**
+> **Issues, bug reports and feature requests should be submitted to the [issue tracker on GitHub](https://github.com/TelluIoT/ThingML/issues)**
 
 ## &#x1F537; Prerequisites &#x2757;
 
@@ -23,9 +23,10 @@ If you are going to compile Java code from ThingML, please:
 - Install [Maven](http://maven.apache.org/)
 
 ### &#x1F539; Javascript
-If you are going to compile Java code from ThingML, please:
+If you are going to compile Javascript code from ThingML, for:
 
-- Install [Node.JS](https://nodejs.org/en/)
+- NodeJS: Install [Node.JS](https://nodejs.org/en/)
+- Browser: Make sure you have a decent web browser (Chrome or Firefox should work fine, and probably some others)
 
 ### &#x1F539; UML
 If you are going to compile UML Diagrams from ThingML, please:
@@ -36,6 +37,15 @@ If you are going to compile UML Diagrams from ThingML, please:
 If you are going to compile Arduino code from ThingML, please:
 
 - Install [Arduino IDE](https://www.arduino.cc/en/Main/Software)
+
+### &#x1F539; Teensy
+If you are going to compile Teensy code from ThingML, please:
+
+- Install [Teensyduino IDE](https://www.pjrc.com/teensy/td_download.html)
+
+or
+- Install [cross compiled arm toochain](https://developer.arm.com/open-source/gnu-toolchain/gnu-rm/downloads)
+- Install [teensy command line loader](https://www.pjrc.com/teensy/loader_cli.html)
 
 ### &#x1F539; C
 If you are going to compile C code from ThingML, please:
@@ -50,13 +60,8 @@ The easiest way to get started with ThingML is to use the ThingML plugins in the
 
 1. [Download Eclipse for Java Developers](https://eclipse.org/downloads/)
 2. Install and Launch Eclipse
-3. Install EMFText plugins: `Help -> Install New Software... -> Add...` and choose `EMFText` as a name and `http://update.emftext.org/release` as location, and then `OK`. Select `EMFText` and continue with the install procedure &#x23F3;
-4. Install the latest release of the ThingML plugins:
-  1. [Download the latest update site](https://github.com/SINTEF-9012/ThingML/releases)  
-  2. In Eclipse `Help -> Install New Software... -> Add... -> Archive...`, and select the `zip` you have just downloaded, give a name to this update site and then `OK`
-  3. Select `ThingML` and continue the install procedure &#x23F3;
-
-> Another update site is also available for ThingML at `http://thingml.org/dist/update/`. This update site contains all the latest features but might be less stable.
+3. Install XText plugins: `Help -> Install New Software... -> Add...` and choose `XText` as a name and `Xtext - http://download.eclipse.org/modeling/tmf/xtext/updates/composite/releases/` as location, and then `OK`. Select `XText` and continue with the install procedure &#x23F3;
+4. Install the ThingML plugins: Same procedure. Use `ThingML - http://thingml.org/dist/update2/` update site, and select ThingML &#x23F3;
 
 You are now ready to use ThingML. &#x270C;
 
@@ -78,6 +83,12 @@ Once you have created (or imported) ThingML files in your workspace, simply righ
 
 > If Maven claims it cannot find a `pom.xml` file, change the base directory in the `Run as -> Maven build...` window using the `Workspace...` button, so that it points to `thingml-gen/java/your-configuration`.
 
+#### How to compile and run generated JavaScript (for the Browser) code
+
+Nothing special. Open the generated `index.html` file in your System Browser (ideally Chrome or Firefox)
+
+> Do not use the default web browser embedded into Eclipse!
+
 #### How to compile and run generated JavaScript (Node.JS) code
 
 &#x2757; In Eclipse, from this update site: `Node.JS - http://www.nodeclipse.org/updates/enide-2015/`, install `Features included in Enide Studio .Features Set` and `Nodeclipse Node.js .Features Set	1.0.2.201509250223`
@@ -89,9 +100,11 @@ Once you have created (or imported) ThingML files in your workspace, simply righ
 
 #### How to visualize generated UML (PlantUML) diagrams
 
-&#x2757; Install PlantUML plugins in Eclipse using this update site: `http://plantuml.sourceforge.net/updatesitejuno/` (See below for how to install plugins in Eclipse)
+&#x2757; Install PlantUML plugins in Eclipse using this update site: `http://files.idi.ntnu.no/publish/plantuml/repository/` (See below for how to install plugins in Eclipse)
 
 - `Window -> Show View -> Other... -> PlantUML`
+
+> Make sure you have Graphviz installed (see [Prerequisites](#-prerequisites-))
 
 ####  How to compile and run generated C code
 
@@ -110,11 +123,13 @@ Once you have created (or imported) ThingML files in your workspace, simply righ
 
 ## &#x1F537; Compile ThingML from the sources
 
-> You need Maven and a proper JDK8+
+> You need Git, Maven, and a proper JDK8+
 
 ```bash
-git clone https://github.com/SINTEF-9012/ThingML.git
+git clone https://github.com/TelluIoT/ThingML.git
 cd ThingML
+mvn clean install
+cd language
 mvn clean install
 ```
 
@@ -122,55 +137,47 @@ The command-line interface JAR (containing all you need to compile ThingML files
 
 ```bash
 cd compilers/registry/target
-java -jar compilers.registry-1.0.0-SNAPSHOT-jar-with-dependencies.jar
---- ThingML help ---
+java -jar compilers.registry-2.0.0-SNAPSHOT-jar-with-dependencies.jar
+ --- ThingML help ---
 Typical usages:
-   java -jar compilers.registry-1.0.0-SNAPSHOT-jar-with-dependencies.jar \
-   -c <compiler> \
-   -s <source> \
-   [-o <output-dir>]\
-   [-d]
- Options:
-   --compiler, -c
-     Compiler ID (Mandatory)
-   --create-dir, -d
-     Create a new directory named after the configuration for the output
-     Default: false
-   --help, -h
-     Display this message.
-     Default: false
-   --list-plugins
-     Display the list of available plugins
-     Default: false
-   --output, -o
-     Optional output directory - by default current directory is used
-   --source, -s
-     A thingml file to compile (should include at least one configuration)
+    java -jar your-jar.jar -t <tool> -s <source> [-o <output-dir>] [--options <option>][-d]
+Usage: <main class> [options]
+  Options:
+    --compiler, -c
+      Compiler ID (Mandatory unless --tool (-t) is used)
+    --create-dir, -d
+      Create a new directory named after the configuration for the output
+      Default: false
+    --help, -h
+      Display this message.
+      Default: false
+    --list-plugins
+      Display the list of available plugins
+      Default: false
+    --options
+      additional options for ThingML tools.
+    --output, -o
+      Optional output directory - by default current directory is used
+    --source, -s
+      A thingml file to compile (should include at least one configuration)
+    --tool, -t
+      Tool ID (Mandatory unless --compiler (-c) is used)
 
 Compiler Id must belong to the following list:
-??     posixmt  - Generates C code for Linux or other Posix runtime environments (GCC compiler).
-??     java     - Generates plain Java code.
-??     arduino  - Generates C/C++ code for Arduino or other AVR microcontrollers (AVR-GCC compiler).
-??     UML      - Generates UML diagrams in PlantUML
-??     nodejsMT - Generates Multi-Process Javascript code (one nodejs process per instance) for the NodeJS platform.
-??     nodejs   - Generates Javascript code for the NodeJS platform.
-??     posix    - Generates C/C++ code for Linux or other Posix runtime environments (GCC compiler).
-??     debugGUI - Generates html/js mock-up for other a ThingML external connector
-```
+ ??     sintefboard     - Generates C++ based in code for Arduino.
+ ??     posixmt - Generates C code for Linux or other Posix runtime environments (GCC compiler).
+ ??     java    - Generates plain Java code.
+ ??     arduino - Generates C/C++ code for Arduino or other AVR microcontrollers (AVR-GCC compiler).
+ ??     UML     - Generates UML diagrams in PlantUML
+ ??     browser - Generates Javascript code that can run in common Web Browsers.
+ ??     nodejsMT        - Generates Multi-Process Javascript code (one nodejs process per instance) for the NodeJS platform.
+ ??     nodejs  - Generates Javascript code for the NodeJS platform.
+ ??     posix   - Generates C/C++ code for Linux or other Posix runtime environments (GCC compiler).
+ ??     debugGUI        - Generates html/js mock-up for other a ThingML external connector
 
-To generate a new update site:
-```bash
-cd ThingML
-mvn clean install
-cd org.thingml.editor.standaloneApp
-mvn -f pom_eclipse.xml clean install
-rm ../org.thingml.eclipse.ui/lib/*.*
-cp target/org.thingml.editor.standaloneApp-*-jar-with-dependencies.jar ../org.thingml.eclipse.ui/lib/thingml.jar
-cd ../org.thingml.eclipse.updatesite
-mvn -f pom_eclipse.xml clean install
+Tool Id must belong to the following list:
+ ??     testconfigurationgen    - Generates test configuration for things annnotated with @test "input # output".
 ```
-
-The update site will be located in `org.thingml.eclipse.updatesite/target/repository`
 
 ## &#x1F537; FAQ
 
@@ -180,17 +187,15 @@ The update site will be located in `org.thingml.eclipse.updatesite/target/reposi
 
 A ThingML file *per se* is a design-time specification of the structure (components) and behavior (state machines) of a reactive system. It cannot be directly executed.
 
-A ThingML file can however be compiled (or transformed) to Java/JavaScript/C/Arduino source code, which can in turn be compiled and executed on a platform. Code generated from ThingML has been successfully executed on a large number of platforms: PC WIndows/Linux, Raspberry Pi 1, 2 and 3, Intel Edison, Arduino Uno/Mega/Yun, ESP8266, Trinket, Teensy, and probably others.
+A ThingML file can however be compiled (or transformed) to Java/JavaScript/C/Arduino source code, which can in turn be compiled and executed on a platform. Code generated from ThingML has been successfully executed on a large number of platforms: PC Windows/Linux, Raspberry Pi 1, 2 and 3, Intel Edison, Arduino Uno/Mega/Yun/Mini, ESP8266/ESP32, Trinket, Teensy, and probably others.
 
 ### &#x1F539; How to express *this* or *that* in ThingML?
 
-A set of tutorials is available [here](https://github.com/HEADS-project/training/tree/master/1.ThingML_Basics). The tutorials describe the most common features of ThingML. In addition, [an extensive set of tests](https://github.com/SINTEF-9012/ThingML/tree/master/testJar/src/main/resources/tests) describes pretty much all the concepts available. Have a look there is you wonder how to express something. Should this information be insufficient, have a look below.
+A set of tutorials is available [here](https://github.com/HEADS-project/training/tree/master/1.ThingML_Basics). The tutorials describe the most common features of ThingML. In addition, [an extensive set of tests](testJar/src/main/resources/tests) describes pretty much all the concepts available. Have a look there is you wonder how to express something. Should this information be insufficient, have a look below.
 
 ### &#x1F539; How is ThingML formalized?
 
-The ThingML language is formalized into an [EMF-based metamodel](https://github.com/SINTEF-9012/ThingML/blob/master/org.thingml.model/README.md). The textual syntax is formalized as an [EMFText grammar](https://github.com/SINTEF-9012/ThingML/blob/master/org.thingml.model/src/main/model/thingml.cs).
-
-> As EMFText is not supported anymore, we are currently migrating the syntax (and an updated metamodel) to XText.
+The ThingML language is formalized into an EMF-based metamodel. The textual syntax is formalized as an [XText grammar](language/thingml/src/org/thingml/xtext/ThingML.xtext).
 
 ### &#x1F539; All that code is wonderful, but I need some Science... &#x1F4DA;
 
@@ -198,7 +203,7 @@ ThingML is backed by a set of scientific publications (PDFs can easily be found 
 
 - **Model-Based Software Engineering to Tame the IoT Jungle**  
 Brice Morin, Nicolas Harrand and Franck Fleurey  
-To appear in *IEEE Software, Special Issue on Internet of Things*, 2017.
+In *IEEE Software, Special Issue on Internet of Things*, 2017.
 - **ThingML, A Language and Code Generation Framework for Heterogeneous Targets**  
 N. Harrand, F. Fleurey, B. Morin and K.E. Husa  
 In *MODELS’16: ACM/IEEE 19th International Conference on Model Driven Engineering Languages and Systems. Practice and Innovation track*. St Malo, France, October 2-7, 2016
@@ -246,9 +251,9 @@ You can also include ThingML as a Maven dependency in your project:
 
 ### &#x1F539; The code generated by ThingML for Java/JS/C/Arduino does not exactly fit my needs
 
-Rather than being monolithic blobs, compilers are implemented in a modular way around a set of extension points defined in the [ThingML Code Generation Framework](https://github.com/SINTEF-9012/ThingML/blob/master/compilers/README.md).
+Rather than being monolithic blobs, compilers are implemented in a modular way around a set of extension points defined in the [ThingML Code Generation Framework](compilers/README.md).
 
-### &#x1F539; Why can't I generate Python/Lua/Ruby/*you-name-it*?
+### &#x1F539; Why can't I generate Go/Python/Lua/Ruby/*you-name-it*?
 
 Well, it is up to you to implement a compiler for whatever language that is not supported by default. What are you waiting for?
 
@@ -265,12 +270,15 @@ ThingMLCompiler.saveAsXMI(myModel, "target.xmi");
 
 >Protip1: Make sure you have a good understanding of the [ThingML metamodel](#-how-is-thingml-formalized)
 
->Protip2: Have a look at the [helper functions](https://github.com/SINTEF-9012/ThingML/tree/master/org.thingml.model/src/main/java/org/sintef/thingml/helpers) which simplify some typical treatments
+>Protip2: Have a look at the [helper functions](language/thingml/src/org/thingml/xtext/helpers) which simplify some typical treatments
 
-> Models saved this way will contain all the imports that the original file refered to in one big file  
+> Models saved this way will contain all the imports that the original file refered to in one big file
+
+> This feature might currently be broken as we migrated to XText.
 
 ## &#x1F537; More
 
 **Visit [thingml.org](http://www.thingml.org) to find out more about ThingML !**
+
 
 ![ThingML is released under OSI-compliant Apache 2.0 license](https://opensource.org/files/osi_keyhole_100X100_90ppi.png "ThingML is released under OSI-compliant Apache 2.0 license")
